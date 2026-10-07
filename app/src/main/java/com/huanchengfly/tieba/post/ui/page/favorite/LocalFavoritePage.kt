@@ -1,0 +1,551 @@
+package com.huanchengfly.tieba.post.ui.page.favorite
+
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.DropdownMenu
+import androidx.compose.material.DropdownMenuItem
+import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.material.Icon
+import androidx.compose.material.MaterialTheme
+import androidx.compose.material.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.rememberScaffoldState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
+import com.huanchengfly.tieba.post.BuildConfig
+import com.huanchengfly.tieba.post.R
+import com.huanchengfly.tieba.post.arch.collectPartialAsState
+import com.huanchengfly.tieba.post.arch.onEvent
+import com.huanchengfly.tieba.post.arch.pageViewModel
+import com.huanchengfly.tieba.post.models.database.Favorite
+import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
+import com.huanchengfly.tieba.post.ui.page.destinations.ThreadPageDestination
+import com.huanchengfly.tieba.post.ui.widgets.compose.ActionItem
+import com.huanchengfly.tieba.post.ui.widgets.compose.BackNavigationIcon
+import com.huanchengfly.tieba.post.ui.widgets.compose.Button
+import com.huanchengfly.tieba.post.ui.widgets.compose.Card
+import com.huanchengfly.tieba.post.ui.widgets.compose.ConfirmDialog
+import com.huanchengfly.tieba.post.ui.widgets.compose.ErrorScreen
+import com.huanchengfly.tieba.post.ui.widgets.compose.LongClickMenu
+import com.huanchengfly.tieba.post.ui.widgets.compose.MyLazyColumn
+import com.huanchengfly.tieba.post.ui.widgets.compose.MyScaffold
+import com.huanchengfly.tieba.post.ui.widgets.compose.SearchBox
+import com.huanchengfly.tieba.post.ui.widgets.compose.TextButton
+import com.huanchengfly.tieba.post.ui.widgets.compose.TipScreen
+import com.huanchengfly.tieba.post.ui.widgets.compose.TitleCentredToolbar
+import com.huanchengfly.tieba.post.ui.widgets.compose.rememberDialogState
+import com.huanchengfly.tieba.post.ui.widgets.compose.rememberMenuState
+import com.huanchengfly.tieba.post.ui.widgets.compose.states.StateScreen
+import com.huanchengfly.tieba.post.utils.DateTimeUtils.getRelativeTimeString
+import com.huanchengfly.tieba.post.utils.FavoriteHtmlExporter
+import com.huanchengfly.tieba.post.utils.TiebaUtil
+import com.ramcosta.composedestinations.annotation.DeepLink
+import com.ramcosta.composedestinations.annotation.Destination
+import com.ramcosta.composedestinations.navigation.DestinationsNavigator
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+private val PROVIDER = "${BuildConfig.APPLICATION_ID}.share.FileProvider"
+
+@OptIn(ExperimentalMaterialApi::class)
+@Destination(
+    deepLinks = [
+        DeepLink(uriPattern = "tblite://favorite_local")
+    ]
+)
+@Composable
+fun LocalFavoritePage(
+    navigator: DestinationsNavigator,
+    viewModel: LocalFavoriteViewModel = pageViewModel(),
+) {
+    LaunchedEffect(Unit) {
+        viewModel.send(LocalFavoriteUiIntent.Refresh)
+    }
+
+    val context = LocalContext.current
+    val scaffoldState = rememberScaffoldState()
+
+    val isLoading by viewModel.uiState.collectPartialAsState(
+        prop1 = LocalFavoriteUiState::isLoading,
+        initial = true
+    )
+    val keyword by viewModel.uiState.collectPartialAsState(
+        prop1 = LocalFavoriteUiState::keyword,
+        initial = ""
+    )
+    val data by viewModel.uiState.collectPartialAsState(
+        prop1 = LocalFavoriteUiState::data,
+        initial = emptyList()
+    )
+    val selected by viewModel.uiState.collectPartialAsState(
+        prop1 = LocalFavoriteUiState::selected,
+        initial = emptySet()
+    )
+    val exporting by viewModel.uiState.collectPartialAsState(
+        prop1 = LocalFavoriteUiState::exporting,
+        initial = false
+    )
+    val exportProgress by viewModel.uiState.collectPartialAsState(
+        prop1 = LocalFavoriteUiState::exportProgress,
+        initial = null
+    )
+    val error by viewModel.uiState.collectPartialAsState(
+        prop1 = LocalFavoriteUiState::error,
+        initial = null
+    )
+    val isError by remember { derivedStateOf { error != null } }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val raw = runCatching {
+            context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+        }.getOrNull()
+        if (raw.isNullOrBlank()) {
+            viewModel.send(LocalFavoriteUiIntent.Import("\u0000"))
+        } else {
+            viewModel.send(LocalFavoriteUiIntent.Import(raw))
+        }
+    }
+
+    viewModel.onEvent<LocalFavoriteUiEvent.Failed> {
+        scaffoldState.snackbarHostState.showSnackbar(it.message)
+    }
+    viewModel.onEvent<LocalFavoriteUiEvent.Imported> {
+        viewModel.send(LocalFavoriteUiIntent.Refresh)
+        scaffoldState.snackbarHostState.showSnackbar(
+            context.getString(R.string.toast_favorite_imported, it.count)
+        )
+    }
+    viewModel.onEvent<LocalFavoriteUiEvent.Exported> { event ->
+        runCatching {
+            val (file, mime) = when (event.kind) {
+                FavoriteExportKind.HTML ->
+                    FavoriteHtmlExporter.writeToFile(context, event.content) to "text/html"
+
+                FavoriteExportKind.LINKS ->
+                    writeTextFile(context, event.content, "tieba_favorites_links") to "text/plain"
+
+                FavoriteExportKind.BACKUP ->
+                    writeTextFile(context, event.content, "tieba_favorites_backup") to "application/json"
+            }
+            val uri = FileProvider.getUriForFile(context, PROVIDER, file)
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = mime
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, file.name)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(intent, file.name))
+            scaffoldState.snackbarHostState.showSnackbar(
+                context.getString(R.string.toast_favorite_exported, file.name)
+            )
+        }.onFailure {
+            runCatching {
+                scaffoldState.snackbarHostState.showSnackbar(it.message.orEmpty())
+            }
+        }
+    }
+
+    val confirmDelete = rememberDialogState()
+    ConfirmDialog(
+        dialogState = confirmDelete,
+        onConfirm = {
+            viewModel.send(LocalFavoriteUiIntent.DeleteSelected(selected.toList()))
+        },
+        onDismiss = { viewModel.send(LocalFavoriteUiIntent.ClearSelection) },
+    ) {
+        Text(text = stringResource(R.string.dialog_delete_favorite_confirm, selected.size))
+    }
+
+    val selectedIds = remember(selected) { selected.toList() }
+    val hasSelection = selectedIds.isNotEmpty()
+    val allSelected = remember(data, selected) {
+        data.isNotEmpty() && data.all { it.threadId in selected }
+    }
+
+    MyScaffold(
+        backgroundColor = Color.Transparent,
+        scaffoldState = scaffoldState,
+        topBar = {
+            TitleCentredToolbar(
+                title = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = stringResource(id = R.string.title_local_favorite),
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.h6
+                        )
+                        if (hasSelection) {
+                            Text(
+                                text = stringResource(
+                                    R.string.favorite_selected_count,
+                                    selectedIds.size
+                                ),
+                                fontSize = 11.sp,
+                                color = ExtendedTheme.colors.textSecondary,
+                            )
+                        }
+                    }
+                },
+                navigationIcon = {
+                    BackNavigationIcon(onBackPressed = { navigator.navigateUp() })
+                },
+                actions = {
+                    ActionItem(
+                        icon = if (allSelected) Icons.Rounded.Check else Icons.Rounded.Add,
+                        contentDescription = stringResource(
+                            id = if (allSelected) R.string.title_favorite_clear_select
+                            else R.string.title_favorite_select_all
+                        )
+                    ) {
+                        if (allSelected) {
+                            viewModel.send(LocalFavoriteUiIntent.ClearSelection)
+                        } else {
+                            viewModel.send(
+                                LocalFavoriteUiIntent.SelectAll(data.map { it.threadId })
+                            )
+                        }
+                    }
+                    ActionItem(
+                        icon = Icons.Rounded.Add,
+                        contentDescription = stringResource(id = R.string.title_favorite_import)
+                    ) {
+                        importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+                    }
+                    if (hasSelection) {
+                        ActionItem(
+                            icon = Icons.Outlined.Delete,
+                            contentDescription = stringResource(id = R.string.title_delete)
+                        ) {
+                            confirmDelete.show()
+                        }
+                    }
+                },
+            )
+        },
+        bottomBar = {
+            if (hasSelection) {
+                ExportBar(
+                    exporting = exporting,
+                    exportProgress = exportProgress,
+                    onExport = { kind ->
+                        viewModel.send(LocalFavoriteUiIntent.Export(kind, selectedIds))
+                    },
+                    onDelete = { confirmDelete.show() }
+                )
+            }
+        },
+    ) { contentPaddings ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(contentPaddings)
+        ) {
+            SearchBox(
+                keyword = keyword,
+                onKeywordChange = { viewModel.send(LocalFavoriteUiIntent.Search(it)) },
+                placeholder = {
+                    Text(
+                        text = stringResource(id = R.string.hint_search_favorite),
+                        fontSize = 13.sp,
+                        color = ExtendedTheme.colors.textSecondary,
+                    )
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                shape = RoundedCornerShape(10.dp),
+            )
+            StateScreen(
+                isEmpty = data.isEmpty(),
+                isError = isError,
+                isLoading = isLoading,
+                modifier = Modifier.fillMaxSize(),
+                onReload = { viewModel.send(LocalFavoriteUiIntent.Refresh) },
+                errorScreen = { error?.let { ErrorScreen(error = it.get()) } },
+                emptyScreen = {
+                    TipScreen(
+                        title = { Text(text = stringResource(R.string.title_local_favorite)) },
+                        message = {
+                            Text(
+                                text = if (keyword.isBlank())
+                                    stringResource(R.string.title_favorite_local_tip)
+                                else stringResource(R.string.hint_search_favorite),
+                                color = ExtendedTheme.colors.textSecondary,
+                            )
+                        },
+                    )
+                }
+            ) {
+                val lazyListState = rememberLazyListState()
+                MyLazyColumn(state = lazyListState) {
+                    items(items = data, key = { it.threadId }) { favorite ->
+                        FavoriteItem(
+                            favorite = favorite,
+                            selected = favorite.threadId in selected,
+                            onClick = {
+                                if (hasSelection) {
+                                    viewModel.send(
+                                        LocalFavoriteUiIntent.ToggleSelect(favorite.threadId)
+                                    )
+                                } else {
+                                    navigator.navigate(
+                                        ThreadPageDestination(favorite.threadId)
+                                    )
+                                }
+                            },
+                            onCopyLink = {
+                                TiebaUtil.copyText(
+                                    context,
+                                    favorite.url.ifBlank {
+                                        "https://tieba.baidu.com/p/${favorite.threadId}"
+                                    }
+                                )
+                            },
+                            onDelete = {
+                                viewModel.send(
+                                    LocalFavoriteUiIntent.DeleteSelected(
+                                        listOf(favorite.threadId)
+                                    )
+                                )
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FavoriteItem(
+    favorite: Favorite,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onCopyLink: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val context = LocalContext.current
+    val menuState = rememberMenuState()
+    LongClickMenu(
+        menuContent = {
+            DropdownMenuItem(onClick = {
+                onCopyLink()
+                menuState.expanded = false
+            }) {
+                Text(text = stringResource(id = R.string.title_favorite_copy_link))
+            }
+            DropdownMenuItem(onClick = {
+                onClick()
+                menuState.expanded = false
+            }) {
+                Text(text = stringResource(id = R.string.title_favorite_toggle_select))
+            }
+            DropdownMenuItem(onClick = {
+                onDelete()
+                menuState.expanded = false
+            }) {
+                Text(text = stringResource(id = R.string.title_favorite_delete_one))
+            }
+        },
+        menuState = menuState,
+        onClick = onClick,
+    ) {
+        Card(
+            onClick = onClick,
+            content = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    SelectBox(selected = selected)
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 10.dp)
+                    ) {
+                        Text(
+                            text = favorite.title.ifBlank { "(无标题)" },
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = ExtendedTheme.colors.text,
+                        )
+                        Text(
+                            text = buildString {
+                                if (favorite.forumName.isNotBlank()) append(favorite.forumName)
+                                if (!favorite.authorName.isNullOrBlank()) {
+                                    if (isNotEmpty()) append(" · ")
+                                    append(favorite.authorName)
+                                }
+                                if (favorite.lastPage > 0) {
+                                    if (isNotEmpty()) append(" · ")
+                                    append("看到第 ${favorite.lastPage} 页")
+                                }
+                                if (isNotEmpty()) append(" · ")
+                                append(getRelativeTimeString(context, favorite.timestamp))
+                            },
+                            fontSize = 11.sp,
+                            color = ExtendedTheme.colors.textSecondary,
+                        )
+                        val preview = favorite.abstractText?.takeIf { it.isNotBlank() }
+                            ?: favorite.content?.takeIf { it.isNotBlank() }?.replace('\n', ' ')
+                        Text(
+                            text = preview ?: stringResource(R.string.favorite_content_missing),
+                            fontSize = 12.sp,
+                            maxLines = 2,
+                            color = if (preview != null) ExtendedTheme.colors.textSecondary
+                            else ExtendedTheme.colors.textDisabled,
+                        )
+                    }
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun SelectBox(selected: Boolean) {
+    Box(
+        modifier = Modifier
+            .size(20.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .then(
+                if (selected) Modifier.background(ExtendedTheme.colors.primary)
+                else Modifier.border(
+                    1.5.dp,
+                    ExtendedTheme.colors.textDisabled,
+                    RoundedCornerShape(4.dp)
+                )
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (selected) {
+            Icon(
+                imageVector = Icons.Rounded.Check,
+                contentDescription = null,
+                tint = ExtendedTheme.colors.onAccent,
+                modifier = Modifier.size(14.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ExportBar(
+    exporting: Boolean,
+    exportProgress: String?,
+    onExport: (FavoriteExportKind) -> Unit,
+    onDelete: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        if (exporting) {
+            Text(
+                text = exportProgress ?: stringResource(R.string.title_favorite_export),
+                fontSize = 12.sp,
+                color = ExtendedTheme.colors.textSecondary,
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            var menuExpanded by remember { mutableStateOf(false) }
+            Box {
+                Button(
+                    onClick = { menuExpanded = true },
+                    modifier = Modifier.weight(1f),
+                    enabled = !exporting,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Share,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .padding(end = 4.dp)
+                            .size(18.dp)
+                    )
+                    Text(text = stringResource(R.string.title_favorite_export))
+                }
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false }
+                ) {
+                    DropdownMenuItem(onClick = {
+                        menuExpanded = false
+                        onExport(FavoriteExportKind.HTML)
+                    }) {
+                        Text(stringResource(R.string.title_favorite_export_html))
+                    }
+                    DropdownMenuItem(onClick = {
+                        menuExpanded = false
+                        onExport(FavoriteExportKind.LINKS)
+                    }) {
+                        Text(stringResource(R.string.title_favorite_export_links))
+                    }
+                    DropdownMenuItem(onClick = {
+                        menuExpanded = false
+                        onExport(FavoriteExportKind.BACKUP)
+                    }) {
+                        Text(stringResource(R.string.title_favorite_export_backup))
+                    }
+                }
+            }
+            TextButton(onClick = onDelete, enabled = !exporting) {
+                Text(text = stringResource(R.string.title_delete))
+            }
+        }
+    }
+}
+
+private fun writeTextFile(context: android.content.Context, content: String, baseName: String): File {
+    val dir = File(
+        context.getExternalFilesDir(null) ?: context.filesDir,
+        "tieba_favorites"
+    )
+    if (!dir.exists()) dir.mkdirs()
+    val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+    val extension = if (baseName.endsWith("backup")) "json" else "txt"
+    return File(dir, "${baseName}_$stamp.$extension").apply { writeText(content, Charsets.UTF_8) }
+}

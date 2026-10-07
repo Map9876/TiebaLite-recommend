@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resource>
+    <paths>
+        <cache-path
+            name="shareCache"
+            path=".shareTemp" />
+        <external-files-path
+            name="favoriteExport"
+            path="tieba_favorites" />
+    </paths>
+</resource>
