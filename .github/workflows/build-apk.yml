@@ -31,8 +31,13 @@ jobs:
           distribution: "temurin"
           cache: gradle
 
+      # runner 镜像自带 Android SDK，不再用 android-actions/setup-android
+      # （它在装了 cmdline-tools 16 的镜像上会去装已下架的 tools 包，直接失败）
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --list_installed 2>/dev/null | head -20
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v3
