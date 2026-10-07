@@ -143,8 +143,9 @@ object FavoriteHtmlExporter {
             val body = response.body ?: return null
             val bytes = body.bytes()
             if (bytes.isEmpty() || bytes.size > MAX_IMAGE_BYTES) return null
-            val mime = body.contentType()?.type()?.let { "${it}/${body.contentType()?.subtype()}" }
-                ?: "image/jpeg"
+            val contentType = body.contentType()
+            val mime = if (contentType != null) "${contentType.type}/${contentType.subtype}"
+            else "image/jpeg"
             "data:$mime;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
         }
     }.getOrNull()

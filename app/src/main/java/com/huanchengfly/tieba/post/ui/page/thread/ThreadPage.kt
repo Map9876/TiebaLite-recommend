@@ -912,13 +912,14 @@ fun ThreadPage(
             val pairs = ArrayList<Pair<ImmutableHolder<Post>, List<PbContentRender>>>(
                 data.size + 1
             )
-            if (firstPost != null) pairs.add(firstPost to firstPostContentRenders)
+            firstPost?.let { pairs.add(it to firstPostContentRenders) }
             data.forEach { pairs.add(it.post to it.contentRenders) }
             pairs.map { (post, renders) ->
                 val postAuthor = post.get { author }
                 ThreadViewCache.Floor(
                     floor = post.get { floor },
-                    author = postAuthor.get { nameShow }.ifBlank { postAuthor.get { name } },
+                    author = postAuthor?.get { nameShow }.orEmpty()
+                        .ifBlank { postAuthor?.get { name }.orEmpty() },
                     text = renders.joinToString("\n") { it.toString() },
                     images = renders.filterIsInstance<PicContentRender>()
                         .map { it.originUrl.ifBlank { it.picUrl } },

@@ -15,6 +15,8 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.litepal.LitePal
+import org.litepal.LitePal.findAll
+import org.litepal.extension.deleteAll
 import org.litepal.extension.find
 import org.litepal.extension.findFirst
 

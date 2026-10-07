@@ -91,7 +91,9 @@ class LocalFavoriteViewModel @Inject constructor() :
 
         private fun load(keyword: String): Flow<LocalFavoritePartialChange.Refresh> =
             FavoriteRepository.flow(keyword)
-                .map { LocalFavoritePartialChange.Refresh.Success(it, keyword) }
+                .map<List<Favorite>, LocalFavoritePartialChange.Refresh> {
+                    LocalFavoritePartialChange.Refresh.Success(it, keyword)
+                }
                 .onStart { emit(LocalFavoritePartialChange.Refresh.Start) }
                 .catch { emit(LocalFavoritePartialChange.Refresh.Failure(it)) }
 
@@ -220,7 +222,7 @@ sealed interface LocalFavoritePartialChange : PartialChange<LocalFavoriteUiState
 
     sealed class Export : LocalFavoritePartialChange {
         override fun reduce(oldState: LocalFavoriteUiState): LocalFavoriteUiState = when (this) {
-            Start -> oldState.copy(exporting = true, exportProgress = null)
+            is Start -> oldState.copy(exporting = true, exportProgress = null)
             is Progress -> oldState.copy(
                 exporting = true,
                 exportProgress = "正在抓图 $done/$total",
@@ -241,7 +243,7 @@ sealed interface LocalFavoritePartialChange : PartialChange<LocalFavoriteUiState
 
     sealed class Import : LocalFavoritePartialChange {
         override fun reduce(oldState: LocalFavoriteUiState): LocalFavoriteUiState = when (this) {
-            Start -> oldState.copy(importing = true)
+            is Start -> oldState.copy(importing = true)
             is Success -> oldState.copy(importing = false)
             is Failure -> oldState.copy(importing = false)
         }

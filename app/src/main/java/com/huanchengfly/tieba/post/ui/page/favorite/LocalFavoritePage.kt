@@ -493,10 +493,9 @@ private fun ExportBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             var menuExpanded by remember { mutableStateOf(false) }
-            Box {
+            Box(modifier = Modifier.weight(1f)) {
                 Button(
                     onClick = { menuExpanded = true },
-                    modifier = Modifier.weight(1f),
                     enabled = !exporting,
                 ) {
                     Icon(

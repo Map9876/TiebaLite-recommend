@@ -710,9 +710,9 @@ fun ThreadAgreeBtn(
 ) {
     val account = LocalAccount.current
     val favoriteIds by FavoriteRepository.favoriteIds.collectAsState()
-    val canFavorite = account == null && favoriteInfo != null
-    val isFavorite = favoriteInfo != null && favoriteIds.contains(favoriteInfo.threadId)
-    val checked = if (canFavorite) isFavorite else hasAgree
+    val target = favoriteInfo.takeIf { account == null }
+    val isFavorite = target != null && favoriteIds.contains(target.threadId)
+    val checked = if (target != null) isFavorite else hasAgree
 
     val contentColor =
         if (checked) ExtendedTheme.colors.primary else ExtendedTheme.colors.textSecondary
@@ -735,8 +735,8 @@ fun ThreadAgreeBtn(
         modifier = modifier,
         color = animatedColor,
         onClick = {
-            if (canFavorite) {
-                onFavorite?.invoke(FavoriteRepository.toggle(favoriteInfo))
+            if (target != null) {
+                onFavorite?.invoke(FavoriteRepository.toggle(target))
             } else {
                 onClick()
             }
@@ -849,8 +849,8 @@ fun FeedCard(
                             threadId = item.get { id },
                             title = item.get { title },
                             forumName = item.getNullableImmutable { forumInfo }?.get { name }.orEmpty(),
-                            authorName = item.getNullableImmutable { author }?.get {
-                                user_name.ifBlank { user_nickname }
+                            authorName = item.getNullableImmutable { author }?.let { user ->
+                                user.get { nameShow }.ifBlank { user.get { name } }
                             },
                             abstractText = item.get { abstractText },
                         )

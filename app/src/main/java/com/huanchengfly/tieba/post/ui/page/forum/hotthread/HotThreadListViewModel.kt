@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.flatMapConcat
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onStart
@@ -51,13 +52,15 @@ class HotThreadListViewModel @Inject constructor() :
             )
 
         private fun HotThreadUiIntent.Refresh.producePartialChange() =
-            SwanTiebaApi.threads(forumName, page = 1, tabId = SwanTiebaApi.TAB_HOT)
-                .map { HotThreadPartialChange.Refresh.Success(it) }
+            flow { emit(SwanTiebaApi.threads(forumName, page = 1, tabId = SwanTiebaApi.TAB_HOT)) }
+                .map<List<SwanThread>, HotThreadPartialChange.Refresh> {
+                    HotThreadPartialChange.Refresh.Success(it)
+                }
                 .onStart { emit(HotThreadPartialChange.Refresh.Start) }
                 .catch { emit(HotThreadPartialChange.Refresh.Failure(it.message.orEmpty())) }
 
         private fun HotThreadUiIntent.LoadMore.producePartialChange() =
-            SwanTiebaApi.threads(forumName, page = page, tabId = SwanTiebaApi.TAB_HOT)
+            flow { emit(SwanTiebaApi.threads(forumName, page = page, tabId = SwanTiebaApi.TAB_HOT)) }
                 .map<List<SwanThread>, HotThreadPartialChange.LoadMore> {
                     HotThreadPartialChange.LoadMore.Success(it, page)
                 }

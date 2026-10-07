@@ -16,10 +16,9 @@ data class SwanThread(
     val agreeNum: Int = 0,
     val shareNum: Int = 0,
     val isLive: Boolean = false,
+    /** feed_head 里带的用户主页 schema，点头像能跳过去 */
+    val userSchema: String = "",
 ) {
     val url: String
         get() = "https://tieba.baidu.com/p/$tid"
-
-    /** feed_head 里带的用户主页 schema，点头像能跳过去 */
-    val userSchema: String = ""
 }
