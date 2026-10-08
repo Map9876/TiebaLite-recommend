@@ -93,7 +93,6 @@ private class ForumThreadListPartialChangeProducer(val type: ForumThreadListType
             intentFlow.filterIsInstance<ForumThreadListUiIntent.JumpToPage>()
                 .flatMapConcat { it.producePartialChange() },
         )
-}
 
     private fun ForumThreadListUiIntent.FirstLoad.producePartialChange() =
         FrsPageRepository.frsPage(
@@ -290,6 +289,8 @@ sealed interface ForumThreadListUiIntent : UiIntent {
         val sortType: Int = -1,
         val goodClassifyId: Int? = null,
     ) : ForumThreadListUiIntent
+}
+
 }
 
 sealed interface ForumThreadListPartialChange : PartialChange<ForumThreadListUiState> {
