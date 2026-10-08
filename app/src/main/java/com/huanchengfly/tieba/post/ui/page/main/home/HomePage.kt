@@ -568,7 +568,7 @@ fun HomePage(
                                                 .fillMaxWidth()
                                                 .padding(horizontal = 12.dp)
                                                 .padding(bottom = 8.dp),
-                                            maxItemsInEachRow = 4,
+                                            maxItemsInEachRow = 3,
                                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                                             verticalArrangement = Arrangement.spacedBy(12.dp)
                                         ) {
@@ -585,16 +585,18 @@ fun HomePage(
                                                         }
                                                         .padding(vertical = 6.dp)
                                                 ) {
+                                                    // 圆角方形（squircle）而不是正圆，
+                                                    // 尺寸也放大，一眼能认出是哪个吧
                                                     Avatar(
                                                         data = forum.avatar,
                                                         contentDescription = null,
-                                                        size = 52.dp,
-                                                        shape = CircleShape
+                                                        size = 76.dp,
+                                                        shape = RoundedCornerShape(22.dp)
                                                     )
-                                                    Spacer(modifier = Modifier.height(6.dp))
+                                                    Spacer(modifier = Modifier.height(8.dp))
                                                     Text(
                                                         text = forum.title,
-                                                        fontSize = 13.sp,
+                                                        fontSize = 14.sp,
                                                         fontWeight = FontWeight.Bold,
                                                         maxLines = 1,
                                                         overflow = TextOverflow.Ellipsis,
