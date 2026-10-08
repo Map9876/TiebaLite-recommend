@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -51,6 +52,7 @@ import com.huanchengfly.tieba.post.ui.widgets.compose.ThreadReplyBtn
 import com.huanchengfly.tieba.post.ui.widgets.compose.ThreadShareBtn
 import com.huanchengfly.tieba.post.ui.widgets.compose.UserHeader
 import com.huanchengfly.tieba.post.ui.widgets.compose.states.StateScreen
+import com.huanchengfly.tieba.post.utils.DateTimeUtils.getRelativeTimeString
 
 /**
  * 吧内「热门」列表。数据来自百度贴吧小程序 frs/page 接口（免登录），
@@ -143,6 +145,10 @@ private fun HotThreadCard(
     forumName: String,
     onClick: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val createTime = remember(thread.tid, thread.createTime) {
+        thread.createTime.takeIf { it > 0 }?.let { getRelativeTimeString(context, it * 1000) }
+    }
     Card(
         header = {
             UserHeader(
@@ -159,6 +165,9 @@ private fun HotThreadCard(
                         color = ExtendedTheme.colors.text,
                         fontWeight = FontWeight.Bold
                     )
+                },
+                desc = createTime?.let {
+                    { Text(text = it, fontSize = 11.sp, color = ExtendedTheme.colors.textSecondary) }
                 },
             )
         },

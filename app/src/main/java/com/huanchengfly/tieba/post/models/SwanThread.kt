@@ -16,6 +16,8 @@ data class SwanThread(
     val agreeNum: Int = 0,
     val shareNum: Int = 0,
     val isLive: Boolean = false,
+    /** 发帖时间（秒）。来自 feed_head.extra_data 里text.type==3 的那一项 */
+    val createTime: Long = 0,
     /** feed_head 里带的用户主页 schema，点头像能跳过去 */
     val userSchema: String = "",
 ) {

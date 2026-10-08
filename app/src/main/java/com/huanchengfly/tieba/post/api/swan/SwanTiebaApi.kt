@@ -5,6 +5,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -125,6 +126,7 @@ object SwanTiebaApi {
         var agreeNum = 0
         var shareNum = 0
         var isLive = false
+        var createTime = 0L
 
         components.forEach { element ->
             val component = element.jsonObject
@@ -135,6 +137,7 @@ object SwanTiebaApi {
                 "feed_abstract" -> abstract = payload.joinTexts("data").replace('\n', ' ')
                 "feed_head" -> {
                     authorAvatar = payload.str("image_data", "img_url")
+                    createTime = parseCreateTime(payload["extra_data"])
                     userSchema = payload.str("image_data", "schema")
                         .ifBlank { payload.str("schema") }
                     authorName = (payload["main_data"] as? JsonArray)
@@ -175,8 +178,26 @@ object SwanTiebaApi {
             agreeNum = agreeNum,
             shareNum = shareNum,
             isLive = isLive,
+            createTime = createTime,
             userSchema = userSchema,
         )
+    }
+
+    /**
+     * 发帖时间藏在 feed_head.extra_data 里：形如
+     *   [{"type":1,"text":{"text":"1790815105","type":3}}]
+     * 同一段还可能带吧主徽章之类的纯文本（text.type 不为 3），
+     * 所以按 type==3 筛，拿到的是秒级时间戳。
+     */
+    private fun parseCreateTime(extra: JsonElement?): Long {
+        val array = extra as? JsonArray ?: return 0L
+        for (element in array) {
+            val text = (element as? JsonObject)?.get("text") as? JsonObject ?: continue
+            if ((text["type"] as? JsonPrimitive)?.intOrNull != 3) continue
+            val value = (text["text"] as? JsonPrimitive)?.contentOrNull ?: continue
+            value.toLongOrNull()?.let { if (it > 1_000_000_000L) return it }
+        }
+        return 0L
     }
 
     // -------- JsonObject 小工具 --------
