@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -18,6 +19,7 @@ import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.Icon
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.IconButton
 import androidx.compose.material.Text
@@ -26,7 +28,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.huanchengfly.tieba.post.R
+import com.huanchengfly.tieba.post.api.swan.SwanTiebaApi
 import com.huanchengfly.tieba.post.arch.collectPartialAsState
 import com.huanchengfly.tieba.post.arch.pageViewModel
 import com.huanchengfly.tieba.post.models.SwanThread
@@ -59,7 +64,11 @@ import com.huanchengfly.tieba.post.ui.widgets.compose.ThreadReplyBtn
 import com.huanchengfly.tieba.post.ui.widgets.compose.ThreadShareBtn
 import com.huanchengfly.tieba.post.ui.widgets.compose.UserHeader
 import com.huanchengfly.tieba.post.ui.widgets.compose.states.StateScreen
+import com.huanchengfly.tieba.post.models.database.ForumBrowse
 import com.huanchengfly.tieba.post.utils.DateTimeUtils.getRelativeTimeString
+import com.huanchengfly.tieba.post.utils.ForumBrowseMemory
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * 吧内「热门」列表。数据来自百度贴吧小程序 frs/page 接口（免登录），
@@ -75,6 +84,21 @@ fun HotThreadListPage(
     val navigator = LocalNavigator.current
         LaunchedEffect(Unit) {
             viewModel.send(HotThreadUiIntent.Refresh(forumName))
+        }
+
+        // 上次翻到哪了
+        var lastSeen by remember(forumName) { mutableStateOf<ForumBrowse?>(null) }
+        LaunchedEffect(forumName) {
+            lastSeen = ForumBrowseMemory.load(forumName, SwanTiebaApi.TAB_HOT)
+        }
+        // 每拿到一批就把进度记下来（后台协程，不挡UI）
+        LaunchedEffect(data.size, currentPage, forumName) {
+            if (data.isEmpty()) return@LaunchedEffect
+            withContext(Dispatchers.IO) {
+                ForumBrowseMemory.record(
+                    forumName, SwanTiebaApi.TAB_HOT, currentPage, data
+                )
+            }
         }
 
         val isRefreshing by viewModel.uiState.collectPartialAsState(
@@ -147,6 +171,39 @@ fun HotThreadListPage(
                                     color = ExtendedTheme.colors.textSecondary,
                                 )
                                 Spacer(modifier = Modifier.weight(1f))
+                                // 记住上次翻到的日期，下次从那儿接着翻
+                                lastSeen?.let { seen ->
+                                    Text(
+                                        text = "· 上次看到 ${formatDay(seen.oldestSeenTime)}",
+                                        fontSize = 12.sp,
+                                        color = ExtendedTheme.colors.textSecondary,
+                                        modifier = Modifier.clickable {
+                                            viewModel.send(
+                                                HotThreadUiIntent.JumpTo(
+                                                    forumName,
+                                                    seen.maxPage.coerceAtLeast(1)
+                                                )
+                                            )
+                                        }
+                                    )
+                                }
+                                IconButton(
+                                    onClick = {
+                                        viewModel.send(
+                                            HotThreadUiIntent.JumpTo(
+                                                forumName,
+                                                (lastSeen?.maxPage ?: 0) + 1
+                                            )
+                                        )
+                                    },
+                                    enabled = !isRefreshing && lastSeen != null,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.KeyboardArrowDown,
+                                        contentDescription = "继续往后翻",
+                                        tint = ExtendedTheme.colors.textSecondary,
+                                    )
+                                }
                                 IconButton(
                                     onClick = {
                                         viewModel.send(
@@ -182,6 +239,10 @@ fun HotThreadListPage(
             }
         }
 }
+
+private fun formatDay(timeSeconds: Long): String =
+    if (timeSeconds <= 0) "-" else java.text.SimpleDateFormat("MM-dd", java.util.Locale.getDefault())
+        .format(java.util.Date(timeSeconds * 1000))
 
 @Composable
 private fun HotThreadCard(

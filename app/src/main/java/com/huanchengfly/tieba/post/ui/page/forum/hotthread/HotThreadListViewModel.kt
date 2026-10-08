@@ -61,6 +61,8 @@ class HotThreadListViewModel @Inject constructor() :
                     .flatMapConcat { it.producePartialChange() },
                 intentFlow.filterIsInstance<HotThreadUiIntent.LoadMore>()
                     .flatMapConcat { it.producePartialChange() },
+                intentFlow.filterIsInstance<HotThreadUiIntent.JumpTo>()
+                    .flatMapConcat { it.producePartialChange() },
             )
 
         private fun HotThreadUiIntent.Refresh.producePartialChange() =
@@ -85,6 +87,9 @@ sealed interface HotThreadUiIntent : UiIntent {
     /** [force] 为 true 时无视「已加载过」的判断，强制重新拉 */
     data class Refresh(val forumName: String, val force: Boolean = false) : HotThreadUiIntent
 
+    /** 直接跳到指定页：用「继续翻上次的位置」或手动输入页码 */
+    data class JumpTo(val forumName: String, val page: Int) : HotThreadUiIntent
+
     data class LoadMore(val forumName: String, val page: Int) : HotThreadUiIntent
 }
 
@@ -108,6 +113,27 @@ sealed interface HotThreadPartialChange : PartialChange<HotThreadUiState> {
         data class Success(val data: List<SwanThread>) : Refresh()
 
         data class Failure(val error: String) : Refresh()
+    }
+
+    /** 跳页：结果直接替换整个列表，并把 currentPage 设成目标页 */
+    sealed class JumpTo : HotThreadPartialChange {
+        override fun reduce(oldState: HotThreadUiState): HotThreadUiState = when (this) {
+            Start -> oldState.copy(isRefreshing = true)
+            is Success -> oldState.copy(
+                isRefreshing = false,
+                data = data.distinctBy { it.tid },
+                currentPage = page,
+                hasMore = data.isNotEmpty()
+            )
+
+            is Failure -> oldState.copy(isRefreshing = false)
+        }
+
+        data class Start(val page: Int) : JumpTo()
+
+        data class Success(val data: List<SwanThread>, val page: Int) : JumpTo()
+
+        data class Failure(val error: String, val page: Int) : JumpTo()
     }
 
     sealed class LoadMore : HotThreadPartialChange {
