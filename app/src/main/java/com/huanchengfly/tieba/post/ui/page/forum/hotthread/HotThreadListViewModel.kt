@@ -73,6 +73,16 @@ class HotThreadListViewModel @Inject constructor() :
                 .onStart { emit(HotThreadPartialChange.Refresh.Start) }
                 .catch { emit(HotThreadPartialChange.Refresh.Failure(it.message.orEmpty())) }
 
+        private fun HotThreadUiIntent.JumpTo.producePartialChange() =
+            flow<List<SwanThread>> {
+                emit(SwanTiebaApi.threads(forumName, page = page, tabId = SwanTiebaApi.TAB_HOT))
+            }
+                .map<List<SwanThread>, HotThreadPartialChange.JumpTo> {
+                    HotThreadPartialChange.JumpTo.Success(it, page)
+                }
+                .onStart { emit(HotThreadPartialChange.JumpTo.Start(page)) }
+                .catch { emit(HotThreadPartialChange.JumpTo.Failure(it.message.orEmpty(), page)) }
+
         private fun HotThreadUiIntent.LoadMore.producePartialChange() =
             flow { emit(SwanTiebaApi.threads(forumName, page = page, tabId = SwanTiebaApi.TAB_HOT)) }
                 .map<List<SwanThread>, HotThreadPartialChange.LoadMore> {
@@ -118,7 +128,7 @@ sealed interface HotThreadPartialChange : PartialChange<HotThreadUiState> {
     /** 跳页：结果直接替换整个列表，并把 currentPage 设成目标页 */
     sealed class JumpTo : HotThreadPartialChange {
         override fun reduce(oldState: HotThreadUiState): HotThreadUiState = when (this) {
-            Start -> oldState.copy(isRefreshing = true)
+            is Start -> oldState.copy(isRefreshing = true)
             is Success -> oldState.copy(
                 isRefreshing = false,
                 data = data.distinctBy { it.tid },

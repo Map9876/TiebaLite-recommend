@@ -86,20 +86,6 @@ fun HotThreadListPage(
             viewModel.send(HotThreadUiIntent.Refresh(forumName))
         }
 
-        // 上次翻到哪了
-        var lastSeen by remember(forumName) { mutableStateOf<ForumBrowse?>(null) }
-        LaunchedEffect(forumName) {
-            lastSeen = ForumBrowseMemory.load(forumName, SwanTiebaApi.TAB_HOT)
-        }
-        // 每拿到一批就把进度记下来（后台协程，不挡UI）
-        LaunchedEffect(data.size, currentPage, forumName) {
-            if (data.isEmpty()) return@LaunchedEffect
-            withContext(Dispatchers.IO) {
-                ForumBrowseMemory.record(
-                    forumName, SwanTiebaApi.TAB_HOT, currentPage, data
-                )
-            }
-        }
 
         val isRefreshing by viewModel.uiState.collectPartialAsState(
             prop1 = HotThreadUiState::isRefreshing,
@@ -126,6 +112,21 @@ fun HotThreadListPage(
             initial = null
         )
         val isError by remember { derivedStateOf { error != null } }
+
+        // 上次翻到哪了
+        var lastSeen by remember(forumName) { mutableStateOf<ForumBrowse?>(null) }
+        LaunchedEffect(forumName) {
+            lastSeen = ForumBrowseMemory.load(forumName, SwanTiebaApi.TAB_HOT)
+        }
+        // 每拿到一批就把进度记下来（后台协程，不挡UI）
+        LaunchedEffect(data.size, currentPage, forumName) {
+            if (data.isEmpty()) return@LaunchedEffect
+            withContext(Dispatchers.IO) {
+                ForumBrowseMemory.record(
+                    forumName, SwanTiebaApi.TAB_HOT, currentPage, data
+                )
+            }
+        }
 
         StateScreen(
             isEmpty = data.isEmpty(),
