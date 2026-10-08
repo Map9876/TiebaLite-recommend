@@ -174,6 +174,7 @@ import com.huanchengfly.tieba.post.utils.TiebaUtil
 import com.huanchengfly.tieba.post.models.ThreadFavoriteInfo
 import com.huanchengfly.tieba.post.repository.FavoriteRepository
 import com.huanchengfly.tieba.post.toastReplace
+import com.huanchengfly.tieba.post.utils.FavoriteHtmlExporter
 import com.huanchengfly.tieba.post.utils.ThreadViewCache
 import com.huanchengfly.tieba.post.utils.Util.getIconColorByLevel
 import com.huanchengfly.tieba.post.utils.appPreferences

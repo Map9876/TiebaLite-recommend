@@ -68,6 +68,7 @@ import com.huanchengfly.tieba.post.ui.widgets.compose.ThreadShareBtn
 import com.huanchengfly.tieba.post.ui.widgets.compose.UserHeader
 import com.huanchengfly.tieba.post.ui.widgets.compose.states.StateScreen
 import com.huanchengfly.tieba.post.models.database.ForumBrowse
+import com.huanchengfly.tieba.post.utils.FavoriteHtmlExporter
 import com.huanchengfly.tieba.post.models.database.ForumPageSample
 import com.huanchengfly.tieba.post.utils.DateTimeUtils.getRelativeTimeString
 import com.huanchengfly.tieba.post.utils.ForumBrowseMemory

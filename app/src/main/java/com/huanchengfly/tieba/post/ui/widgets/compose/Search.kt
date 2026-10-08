@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEach
 import com.huanchengfly.tieba.post.R
 import com.huanchengfly.tieba.post.models.ThreadFavoriteInfo
+import com.huanchengfly.tieba.post.utils.FavoriteHtmlExporter
 import com.huanchengfly.tieba.post.api.models.SearchThreadBean
 import com.huanchengfly.tieba.post.arch.BaseComposeActivity
 import com.huanchengfly.tieba.post.ui.common.PbContentText

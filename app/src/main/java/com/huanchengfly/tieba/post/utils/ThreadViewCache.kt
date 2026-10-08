@@ -167,7 +167,8 @@ object ThreadViewCache {
         return Content(
             text = snapshot.toPlainText(),
             maxPage = max(snapshot.maxPage, 1),
-            imageUrls = snapshot.imageUrls()
+            imageUrls = snapshot.imageUrls(),
+            floorsJson = toFloorsJson(snapshot.pages)
         )
     }
 
@@ -176,6 +177,8 @@ object ThreadViewCache {
         val text: String,
         val maxPage: Int,
         val imageUrls: List<String>,
+        /** 结构化楼层，导出 HTML 时用来按布局渲染（作者/图片各归各位） */
+        val floorsJson: String = "",
     )
 
     fun clear() {

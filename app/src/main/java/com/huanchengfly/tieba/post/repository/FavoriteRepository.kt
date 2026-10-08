@@ -73,9 +73,7 @@ object FavoriteRepository {
                 content = cached?.text,
                 imageUrls = cached?.imageUrls?.joinToString("\n"),
                 coverUrl = info.coverUrl ?: cached?.imageUrls?.firstOrNull(),
-                floorsJson = cached?.pages
-                    ?.let { ThreadViewCache.toFloorsJson(it) }
-                    ?.takeIf { it.isNotBlank() },
+                floorsJson = cached?.floorsJson?.takeIf { it.isNotBlank() },
                 lastPage = cached?.maxPage ?: 0,
             ).save()
         }
@@ -87,6 +85,7 @@ object FavoriteRepository {
         info: ThreadFavoriteInfo,
         content: String? = null,
         imageUrls: List<String>? = null,
+        floorsJson: String? = null,
         lastPage: Int = 0,
     ) {
         GlobalScope.launch(Dispatchers.IO) {
@@ -139,8 +138,7 @@ object FavoriteRepository {
                 imageUrls = snapshot.imageUrls.joinToString("\n")
                     .ifBlank { old.imageUrls },
                 coverUrl = old.coverUrl ?: snapshot.imageUrls.firstOrNull(),
-                floorsJson = ThreadViewCache.toFloorsJson(snapshot.pages)
-                    .takeIf { it.isNotBlank() } ?: old.floorsJson,
+                floorsJson = snapshot.floorsJson.takeIf { it.isNotBlank() } ?: old.floorsJson,
                 lastPage = maxOf(old.lastPage, snapshot.maxPage),
             ).update(old.id)
         }

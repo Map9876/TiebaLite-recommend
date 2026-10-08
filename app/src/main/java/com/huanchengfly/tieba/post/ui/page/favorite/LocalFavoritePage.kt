@@ -4,6 +4,7 @@ import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
@@ -196,11 +197,6 @@ fun LocalFavoritePage(
         }
     }
 
-    // 有勾选时按返回键先取消勾选，不要直接退出页面
-    BackHandler(enabled = hasSelection) {
-        viewModel.send(LocalFavoriteUiIntent.ClearSelection)
-    }
-
     val confirmDelete = rememberDialogState()
     ConfirmDialog(
         dialogState = confirmDelete,
@@ -214,6 +210,11 @@ fun LocalFavoritePage(
 
     val selectedIds = remember(selected) { selected.toList() }
     val hasSelection = selectedIds.isNotEmpty()
+
+    // 有勾选时按返回键先取消勾选，不要直接退出页面
+    BackHandler(enabled = hasSelection) {
+        viewModel.send(LocalFavoriteUiIntent.ClearSelection)
+    }
     val allSelected = remember(data, selected) {
         data.isNotEmpty() && data.all { it.threadId in selected }
     }
