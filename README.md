@@ -64,6 +64,15 @@
 
 靠 AGP productFlavor 实现：只改 `applicationIdSuffix` 和应用名，`namespace` 不动（它决定 `BuildConfig`/`R` 的包路径）。FileProvider 和 androidx-startup 的 authority 都改成 `${applicationId}.xxx`，否则两个 App 会抢同一个 authority、manifest merger 会直接冲突。
 
+## 直接下载
+
+每次 Release 都出两个包，文件名固定，下面这两个链接永远指向最新版本：
+
+| 版本 | 包名 | 下载 |
+| --- | --- | --- |
+| 正式版 | `com.huanchengfly.tieba.post` | [tieba-lite-official.apk](https://github.com/Map9876/TiebaLite-recommend/releases/latest/download/tieba-lite-official.apk) |
+| 共存版 | `com.huanchengfly.tieba.post.coexist` | [tieba-lite-coexist.apk](https://github.com/Map9876/TiebaLite-recommend/releases/latest/download/tieba-lite-coexist.apk) |
+
 ## 自动构建
 
 `.github/workflows/build-apk.yml` 在 push / PR / 手动触发时跑：
