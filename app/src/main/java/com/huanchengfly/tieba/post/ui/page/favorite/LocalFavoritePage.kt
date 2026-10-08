@@ -290,8 +290,10 @@ fun LocalFavoritePage(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                shape = RoundedCornerShape(10.dp),
+                    .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 2.dp),
+                shape = RoundedCornerShape(8.dp),
+                color = ExtendedTheme.colors.chip,
+                contentColor = ExtendedTheme.colors.text,
             )
             StateScreen(
                 isEmpty = data.isEmpty(),

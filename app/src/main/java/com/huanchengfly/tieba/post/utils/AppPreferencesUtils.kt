@@ -116,7 +116,8 @@ open class AppPreferencesUtils private constructor(ctx: Context) {
 
     var hideBlockedContent by DataStoreDelegates.boolean(defaultValue = false)
 
-    var hideExplore by DataStoreDelegates.boolean(defaultValue = false)
+    /** 默认不显示「动态」栏，太容易分散注意力；设置里可以再打开 */
+    var hideExplore by DataStoreDelegates.boolean(defaultValue = true)
 
     var hideForumIntroAndStat by DataStoreDelegates.boolean(defaultValue = false)
 

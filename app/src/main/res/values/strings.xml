@@ -543,6 +543,9 @@
     <string name="title_favorite_toggle_select">选择 / 取消选择</string>
     <string name="title_favorite_local_tip">未登录时，帖子右下角的爱心就是收藏</string>
 
+    <string name="toast_favorite_added">已收藏，可在「我 → 我的收藏」查看</string>
+    <string name="toast_favorite_removed">已取消收藏</string>
+
     <!-- 吧内热门 -->
     <string name="tab_forum_hot">热门</string>
 </resources>

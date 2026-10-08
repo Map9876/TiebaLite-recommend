@@ -10,6 +10,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -62,6 +64,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -381,7 +384,7 @@ private fun ForumItem(
     }
 }
 
-@OptIn(ExperimentalMaterialApi::class)
+@OptIn(ExperimentalMaterialApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun HomePage(
     viewModel: HomeViewModel = pageViewModel<HomeUiIntent, HomeViewModel>(listOf(HomeUiIntent.Refresh)),
@@ -558,49 +561,48 @@ fun HomePage(
                                         )
                                     }
                                     AnimatedVisibility(visible = expandHistoryForum) {
-                                        LazyRow(
-                                            contentPadding = PaddingValues(bottom = 8.dp),
+                                        // 图标在上、文字在下，一行放不下就自动换行，
+                                        // 逛过的吧再多也不用左右滑
+                                        FlowRow(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 12.dp)
+                                                .padding(bottom = 8.dp),
+                                            maxItemsInEachRow = 4,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            verticalArrangement = Arrangement.spacedBy(12.dp)
                                         ) {
-                                            item(key = "Spacer1") {
-                                                Spacer(modifier = Modifier.width(12.dp))
-                                            }
-                                            items(
-                                                historyForums,
-                                                key = { it.data }
-                                            ) {
-                                                Row(
+                                            historyForums.forEach { forum ->
+                                                Column(
+                                                    horizontalAlignment = Alignment.CenterHorizontally,
                                                     modifier = Modifier
-                                                        .padding(horizontal = 4.dp)
-                                                        .height(IntrinsicSize.Min)
-                                                        .clip(RoundedCornerShape(100))
-                                                        .background(color = ExtendedTheme.colors.chip)
+                                                        .weight(1f)
+                                                        .clip(RoundedCornerShape(10.dp))
                                                         .clickable {
                                                             navigator.navigate(
-                                                                ForumPageDestination(
-                                                                    it.data
-                                                                )
+                                                                ForumPageDestination(forum.data)
                                                             )
                                                         }
-                                                        .padding(4.dp),
-                                                    verticalAlignment = CenterVertically,
-                                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                        .padding(vertical = 6.dp)
                                                 ) {
                                                     Avatar(
-                                                        data = it.avatar,
+                                                        data = forum.avatar,
                                                         contentDescription = null,
-                                                        size = 24.dp,
+                                                        size = 52.dp,
                                                         shape = CircleShape
                                                     )
+                                                    Spacer(modifier = Modifier.height(6.dp))
                                                     Text(
-                                                        text = it.title,
-                                                        fontSize = 12.sp,
+                                                        text = forum.title,
+                                                        fontSize = 13.sp,
                                                         fontWeight = FontWeight.Bold,
-                                                        modifier = Modifier.padding(end = 4.dp)
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        color = ExtendedTheme.colors.text,
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        textAlign = TextAlign.Center
                                                     )
                                                 }
-                                            }
-                                            item(key = "Spacer2") {
-                                                Spacer(modifier = Modifier.width(12.dp))
                                             }
                                         }
                                     }

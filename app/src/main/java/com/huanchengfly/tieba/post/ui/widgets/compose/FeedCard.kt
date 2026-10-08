@@ -84,6 +84,7 @@ import com.huanchengfly.tieba.post.findActivity
 import com.huanchengfly.tieba.post.goToActivity
 import com.huanchengfly.tieba.post.models.ThreadFavoriteInfo
 import com.huanchengfly.tieba.post.repository.FavoriteRepository
+import com.huanchengfly.tieba.post.toastShort
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
 import com.huanchengfly.tieba.post.ui.common.windowsizeclass.WindowWidthSizeClass
 import com.huanchengfly.tieba.post.ui.page.photoview.PhotoViewActivity
@@ -97,7 +98,6 @@ import com.huanchengfly.tieba.post.utils.EmoticonUtil.emoticonString
 import com.huanchengfly.tieba.post.utils.ImageUtil
 import com.huanchengfly.tieba.post.utils.StringUtil
 import com.huanchengfly.tieba.post.utils.StringUtil.getShortNumString
-import com.huanchengfly.tieba.post.utils.AccountUtil.LocalAccount
 import com.huanchengfly.tieba.post.utils.appPreferences
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
@@ -708,9 +708,11 @@ fun ThreadAgreeBtn(
     favoriteInfo: ThreadFavoriteInfo? = null,
     onFavorite: ((Boolean) -> Unit)? = null,
 ) {
-    val account = LocalAccount.current
+    val context = LocalContext.current
     val favoriteIds by FavoriteRepository.favoriteIds.collectAsState()
-    val target = favoriteInfo.takeIf { account == null }
+    // 只要卡片能给出帖子信息，这个爱心就固定是「本地收藏」。
+    // 之前挂登录态判断，未登录时会静默回落到需要 BDUSS 的点赞接口，点了没反应。
+    val target = favoriteInfo
     val isFavorite = target != null && favoriteIds.contains(target.threadId)
     val checked = if (target != null) isFavorite else hasAgree
 
@@ -736,7 +738,14 @@ fun ThreadAgreeBtn(
         color = animatedColor,
         onClick = {
             if (target != null) {
-                onFavorite?.invoke(FavoriteRepository.toggle(target))
+                val added = FavoriteRepository.toggle(target)
+                context.toastShort(
+                    context.getString(
+                        if (added) R.string.toast_favorite_added
+                        else R.string.toast_favorite_removed
+                    )
+                )
+                onFavorite?.invoke(added)
             } else {
                 onClick()
             }
