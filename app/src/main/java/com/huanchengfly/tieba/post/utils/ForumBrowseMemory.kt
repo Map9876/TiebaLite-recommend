@@ -43,6 +43,8 @@ object ForumBrowseMemory {
         if (times.isEmpty()) return
         val oldest = times.min()
         val newest = times.max()
+        // 拿这批里最老那条当锚点
+        val anchor = threads.filter { it.createTime > 0 }.minByOrNull { it.createTime }
         GlobalScope.launch(Dispatchers.IO) {
             runCatching {
                 val old = LitePal.where("key = ?", keyOf(forumName, tabId)).findFirst<ForumBrowse>()
@@ -55,6 +57,11 @@ object ForumBrowseMemory {
                         if (it == Long.MAX_VALUE) oldest else it
                     },
                     newestSeenTime = maxOf(old?.newestSeenTime ?: 0L, newest),
+                    anchorTid = anchor?.takeIf { page >= (old?.maxPage ?: 0) }?.tid
+                        ?: old?.anchorTid ?: 0L,
+                    anchorTime = anchor?.takeIf { page >= (old?.maxPage ?: 0) }?.createTime
+                        ?.takeIf { it > 0 }
+                        ?: old?.anchorTime ?: 0L,
                 ).saveOrUpdateByKey()
             }
         }

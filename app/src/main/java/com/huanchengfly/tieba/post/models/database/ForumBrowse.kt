@@ -21,6 +21,17 @@ data class ForumBrowse(
     val oldestSeenTime: Long = 0,
     /** 已经看到的最新一条帖子时间（秒） */
     val newestSeenTime: Long = 0,
+    /**
+     * 锚点帖子 id + 它当时的发帖时间。
+     *
+     * 热门榜是会重排的：一周前「第 50 页」这周再翻可能已经不是同批帖子了，
+     * 所以光记页码不可靠。改成记一个具体的帖子当游标——下次回来先确认这个
+     * 帖子还在不在，在就说明榜面漂移不大，不在就知道位置已经变了。
+     * 思路和 GitHub commits 的 `?after=<sha>` 一样：不锚绝对位置，锚具体对象。
+     */
+    val anchorTid: Long = 0,
+    /** 锚点帖子的发帖时间（秒），漂移量靠它和当前页的时间比出来 */
+    val anchorTime: Long = 0,
     val timestamp: Long = System.currentTimeMillis(),
 ) : LitePalSupport() {
     val id: Long = 0

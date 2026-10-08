@@ -77,11 +77,34 @@ class HotThreadListViewModel @Inject constructor() :
             flow<List<SwanThread>> {
                 emit(SwanTiebaApi.threads(forumName, page = page, tabId = SwanTiebaApi.TAB_HOT))
             }
-                .map<List<SwanThread>, HotThreadPartialChange.JumpTo> {
-                    HotThreadPartialChange.JumpTo.Success(it, page)
+                .map<List<SwanThread>, HotThreadPartialChange.JumpTo> { threads ->
+                    val hit = anchorTid != 0L && threads.any { it.tid == anchorTid }
+                    HotThreadPartialChange.JumpTo.Success(
+                        threads, page,
+                        anchorVerified = hit || anchorTid == 0L,
+                        drift = if (hit || anchorTid == 0L) 0 else driftOf(threads, anchorTime)
+                    )
                 }
                 .onStart { emit(HotThreadPartialChange.JumpTo.Start(page)) }
                 .catch { emit(HotThreadPartialChange.JumpTo.Failure(it.message.orEmpty(), page)) }
+
+        /**
+         * 榜面往前漂了多少页。
+         *
+         * 锚点帖子不在目标页里，说明它被新帖挤到后面去了。拿锚点当初的
+         * 发帖时间跟这一页最新的帖子比：锚点比这一页还新，说明中间插进了
+         * 若干页新内容，得往后翻那么多页才能接上。
+         *
+         * 经验值：30 条/页 的吧约 3~5 页/天，这里取 4，只用来给用户一个
+         * 「大概漂了多久」的提示，不当作精确值。
+         */
+        private fun driftOf(threads: List<SwanThread>, anchorTime: Long): Int {
+            if (anchorTime <= 0) return 0
+            val newest = threads.maxOfOrNull { it.createTime } ?: return 0
+            val days = (anchorTime - newest).toDouble() / 86400.0
+            if (days <= 0) return 0
+            return (days * 4).toInt().coerceAtLeast(1)
+        }
 
         private fun HotThreadUiIntent.LoadMore.producePartialChange() =
             flow { emit(SwanTiebaApi.threads(forumName, page = page, tabId = SwanTiebaApi.TAB_HOT)) }
@@ -97,8 +120,16 @@ sealed interface HotThreadUiIntent : UiIntent {
     /** [force] 为 true 时无视「已加载过」的判断，强制重新拉 */
     data class Refresh(val forumName: String, val force: Boolean = false) : HotThreadUiIntent
 
-    /** 直接跳到指定页：用「继续翻上次的位置」或手动输入页码 */
-    data class JumpTo(val forumName: String, val page: Int) : HotThreadUiIntent
+    /**
+     * 直接跳到指定页。用「继续翻上次的位置」或手动输入页码。
+     * [anchorTid] 是上次记下的锚点帖子，用来判断榜面漂移了多少。
+     */
+    data class JumpTo(
+        val forumName: String,
+        val page: Int,
+        val anchorTid: Long = 0L,
+        val anchorTime: Long = 0L,
+    ) : HotThreadUiIntent
 
     data class LoadMore(val forumName: String, val page: Int) : HotThreadUiIntent
 }
@@ -133,7 +164,8 @@ sealed interface HotThreadPartialChange : PartialChange<HotThreadUiState> {
                 isRefreshing = false,
                 data = data.distinctBy { it.tid },
                 currentPage = page,
-                hasMore = data.isNotEmpty()
+                hasMore = data.isNotEmpty(),
+                driftHint = drift
             )
 
             is Failure -> oldState.copy(isRefreshing = false)
@@ -141,7 +173,14 @@ sealed interface HotThreadPartialChange : PartialChange<HotThreadUiState> {
 
         data class Start(val page: Int) : JumpTo()
 
-        data class Success(val data: List<SwanThread>, val page: Int) : JumpTo()
+        data class Success(
+            val data: List<SwanThread>,
+            val page: Int,
+            /** 锚点帖子是否还在这一页里；false 说明榜面已经重排过 */
+            val anchorVerified: Boolean = true,
+            /** 估计漂移了多少页，仅用于提示 */
+            val drift: Int = 0,
+        ) : JumpTo()
 
         data class Failure(val error: String, val page: Int) : JumpTo()
     }
@@ -172,6 +211,8 @@ sealed interface HotThreadPartialChange : PartialChange<HotThreadUiState> {
 
 data class HotThreadUiState(
     val isRefreshing: Boolean = false,
+    /** 上次跳页时榜面漂移了多少页（>0 表示锚点帖被挤走了），UI 据此给提示 */
+    val driftHint: Int = 0,
     val isLoadingMore: Boolean = false,
     val data: List<SwanThread> = emptyList(),
     val currentPage: Int = 1,

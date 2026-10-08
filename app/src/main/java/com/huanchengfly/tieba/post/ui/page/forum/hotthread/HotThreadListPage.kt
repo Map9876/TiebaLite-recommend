@@ -113,6 +113,12 @@ fun HotThreadListPage(
         )
         val isError by remember { derivedStateOf { error != null } }
 
+        // 榜面漂移：锚点帖不在目标页里，说明它被新帖挤到后面去了
+        val driftHint by viewModel.uiState.collectPartialAsState(
+            prop1 = HotThreadUiState::driftHint,
+            initial = 0
+        )
+
         // 上次翻到哪了
         var lastSeen by remember(forumName) { mutableStateOf<ForumBrowse?>(null) }
         LaunchedEffect(forumName) {
@@ -181,8 +187,10 @@ fun HotThreadListPage(
                                         modifier = Modifier.clickable {
                                             viewModel.send(
                                                 HotThreadUiIntent.JumpTo(
-                                                    forumName,
-                                                    seen.maxPage.coerceAtLeast(1)
+                                                    forumName = forumName,
+                                                    page = seen.maxPage.coerceAtLeast(1),
+                                                    anchorTid = seen.anchorTid,
+                                                    anchorTime = seen.anchorTime
                                                 )
                                             )
                                         }
@@ -192,8 +200,10 @@ fun HotThreadListPage(
                                     onClick = {
                                         viewModel.send(
                                             HotThreadUiIntent.JumpTo(
-                                                forumName,
-                                                (lastSeen?.maxPage ?: 0) + 1
+                                                forumName = forumName,
+                                                page = (lastSeen?.maxPage ?: 0) + 1,
+                                                anchorTid = lastSeen?.anchorTid ?: 0L,
+                                                anchorTime = lastSeen?.anchorTime ?: 0L
                                             )
                                         )
                                     },
@@ -219,6 +229,18 @@ fun HotThreadListPage(
                                         tint = ExtendedTheme.colors.textSecondary,
                                     )
                                 }
+                            }
+                        }
+                        if (driftHint > 0) {
+                            item(key = "DriftHint") {
+                                Text(
+                                    text = "热门榜已重排，往后翻约 $driftHint 页能接上之前的进度",
+                                    fontSize = 11.sp,
+                                    color = ExtendedTheme.colors.textSecondary,
+                                    modifier = Modifier.padding(
+                                        start = 16.dp, end = 16.dp, bottom = 6.dp
+                                    ),
+                                )
                             }
                         }
                         items(items = data, key = { it.tid }) { thread ->
