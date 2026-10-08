@@ -11,9 +11,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.DropdownMenu
@@ -26,6 +30,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.rememberScaffoldState
 import androidx.compose.runtime.Composable
@@ -39,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -62,7 +68,6 @@ import com.huanchengfly.tieba.post.ui.widgets.compose.ErrorScreen
 import com.huanchengfly.tieba.post.ui.widgets.compose.LongClickMenu
 import com.huanchengfly.tieba.post.ui.widgets.compose.MyLazyColumn
 import com.huanchengfly.tieba.post.ui.widgets.compose.MyScaffold
-import com.huanchengfly.tieba.post.ui.widgets.compose.SearchBox
 import com.huanchengfly.tieba.post.ui.widgets.compose.TextButton
 import com.huanchengfly.tieba.post.ui.widgets.compose.TipScreen
 import com.huanchengfly.tieba.post.ui.widgets.compose.TitleCentredToolbar
@@ -228,26 +233,37 @@ fun LocalFavoritePage(
                     BackNavigationIcon(onBackPressed = { navigator.navigateUp() })
                 },
                 actions = {
-                    ActionItem(
-                        icon = if (allSelected) Icons.Rounded.Check else Icons.Rounded.Add,
-                        contentDescription = stringResource(
-                            id = if (allSelected) R.string.title_favorite_clear_select
-                            else R.string.title_favorite_select_all
+                    // 用文字按钮而不是图标：之前三个「+」/勾/垃圾桶图标用户完全认不出
+                    TextButton(
+                        onClick = {
+                            if (allSelected) {
+                                viewModel.send(LocalFavoriteUiIntent.ClearSelection)
+                            } else {
+                                viewModel.send(
+                                    LocalFavoriteUiIntent.SelectAll(data.map { it.threadId })
+                                )
+                            }
+                        },
+                        modifier = Modifier.padding(horizontal = 2.dp)
+                    ) {
+                        Text(
+                            text = stringResource(
+                                id = if (allSelected) R.string.title_favorite_clear_select
+                                else R.string.title_favorite_select_all
+                            ),
+                            fontSize = 13.sp
                         )
-                    ) {
-                        if (allSelected) {
-                            viewModel.send(LocalFavoriteUiIntent.ClearSelection)
-                        } else {
-                            viewModel.send(
-                                LocalFavoriteUiIntent.SelectAll(data.map { it.threadId })
-                            )
-                        }
                     }
-                    ActionItem(
-                        icon = Icons.Rounded.Add,
-                        contentDescription = stringResource(id = R.string.title_favorite_import)
+                    TextButton(
+                        onClick = {
+                            importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+                        },
+                        modifier = Modifier.padding(horizontal = 2.dp)
                     ) {
-                        importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+                        Text(
+                            text = stringResource(id = R.string.title_favorite_import),
+                            fontSize = 13.sp
+                        )
                     }
                     if (hasSelection) {
                         ActionItem(
@@ -278,28 +294,52 @@ fun LocalFavoritePage(
                 .fillMaxSize()
                 .padding(contentPaddings)
         ) {
-            SearchBox(
-                keyword = keyword,
-                onKeywordChange = { viewModel.send(LocalFavoriteUiIntent.Search(it)) },
-                placeholder = {
-                    Text(
-                        text = stringResource(id = R.string.hint_search_favorite),
-                        fontSize = 13.sp,
-                        color = ExtendedTheme.colors.textSecondary,
-                    )
-                },
+            // 自己画一个定高的搜索框：SearchBox 那个组件会把自己撑满，
+            // 结果整个列表都被顶没了
+            Row(
+                verticalAlignment = CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 2.dp),
-                shape = RoundedCornerShape(8.dp),
-                color = ExtendedTheme.colors.chip,
-                contentColor = ExtendedTheme.colors.text,
-            )
+                    .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 6.dp)
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(ExtendedTheme.colors.chip)
+                    .padding(horizontal = 12.dp),
+            ) {
+                androidx.compose.material.Icon(
+                    imageVector = Icons.Rounded.Search,
+                    contentDescription = null,
+                    tint = ExtendedTheme.colors.textSecondary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                androidx.compose.foundation.text.BasicTextField(
+                    value = keyword,
+                    onValueChange = { viewModel.send(LocalFavoriteUiIntent.Search(it)) },
+                    singleLine = true,
+                    textStyle = androidx.compose.ui.text.TextStyle(
+                        fontSize = 14.sp,
+                        color = ExtendedTheme.colors.text
+                    ),
+                    cursorBrush = SolidColor(ExtendedTheme.colors.primary),
+                    modifier = Modifier.fillMaxWidth(),
+                    decorationBox = { inner ->
+                        if (keyword.isEmpty()) {
+                            Text(
+                                text = stringResource(id = R.string.hint_search_favorite),
+                                fontSize = 13.sp,
+                                color = ExtendedTheme.colors.textSecondary,
+                            )
+                        }
+                        inner()
+                    }
+                )
+            }
             StateScreen(
                 isEmpty = data.isEmpty(),
                 isError = isError,
                 isLoading = isLoading,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.weight(1f),
                 onReload = { viewModel.send(LocalFavoriteUiIntent.Refresh) },
                 errorScreen = { error?.let { ErrorScreen(error = it.get()) } },
                 emptyScreen = {
@@ -479,6 +519,8 @@ private fun ExportBar(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            // 手机底部有系统导航栏（手势条/三键），不避让的话导出和删除会被压住
+            .navigationBarsPadding()
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -507,7 +549,7 @@ private fun ExportBar(
                             .padding(end = 4.dp)
                             .size(18.dp)
                     )
-                    Text(text = stringResource(R.string.title_favorite_export))
+                    Text(text = stringResource(R.string.title_favorite_export_more))
                 }
                 DropdownMenu(
                     expanded = menuExpanded,

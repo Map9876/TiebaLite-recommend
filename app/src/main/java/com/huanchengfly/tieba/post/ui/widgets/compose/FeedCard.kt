@@ -84,6 +84,7 @@ import com.huanchengfly.tieba.post.findActivity
 import com.huanchengfly.tieba.post.goToActivity
 import com.huanchengfly.tieba.post.models.ThreadFavoriteInfo
 import com.huanchengfly.tieba.post.repository.FavoriteRepository
+import com.huanchengfly.tieba.post.toastReplace
 import com.huanchengfly.tieba.post.toastShort
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
 import com.huanchengfly.tieba.post.ui.common.windowsizeclass.WindowWidthSizeClass
@@ -740,7 +741,7 @@ fun ThreadAgreeBtn(
             val info = target
             if (info != null) {
                 val added = FavoriteRepository.toggle(info)
-                context.toastShort(
+                context.toastReplace(
                     context.getString(
                         if (added) R.string.toast_favorite_added
                         else R.string.toast_favorite_removed

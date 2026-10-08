@@ -526,6 +526,7 @@
     <string name="title_local_favorite">我的收藏（本地）</string>
     <string name="hint_search_favorite">搜标题 / 吧名 / 作者 / 正文</string>
     <string name="title_favorite_export">导出</string>
+    <string name="title_favorite_export_more">导出…</string>
     <string name="title_favorite_export_html">导出为网页（图片已内嵌）</string>
     <string name="title_favorite_export_links">导出链接与标题</string>
     <string name="title_favorite_export_backup">导出备份文件（可再导入）</string>

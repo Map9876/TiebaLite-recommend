@@ -72,6 +72,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -170,6 +171,9 @@ import com.huanchengfly.tieba.post.utils.HistoryUtil
 import com.huanchengfly.tieba.post.utils.StringUtil
 import com.huanchengfly.tieba.post.utils.StringUtil.getShortNumString
 import com.huanchengfly.tieba.post.utils.TiebaUtil
+import com.huanchengfly.tieba.post.models.ThreadFavoriteInfo
+import com.huanchengfly.tieba.post.repository.FavoriteRepository
+import com.huanchengfly.tieba.post.toastReplace
 import com.huanchengfly.tieba.post.utils.ThreadViewCache
 import com.huanchengfly.tieba.post.utils.Util.getIconColorByLevel
 import com.huanchengfly.tieba.post.utils.appPreferences
@@ -210,14 +214,33 @@ fun PostAgreeBtn(
     hasAgreed: Boolean,
     agreeNum: Long,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    favoriteInfo: ThreadFavoriteInfo? = null,
 ) {
+    val context = LocalContext.current
+    val favoriteIds by FavoriteRepository.favoriteIds.collectAsState()
+    val target = favoriteInfo
+    val isFavorite = target != null && favoriteIds.contains(target.threadId)
+    val checked = if (target != null) isFavorite else hasAgreed
     val animatedColor by animateColorAsState(
-        targetValue = if (hasAgreed) ExtendedTheme.colors.accent else ExtendedTheme.colors.textSecondary,
+        targetValue = if (checked) ExtendedTheme.colors.accent else ExtendedTheme.colors.textSecondary,
         label = "postAgreeBtnColor"
     )
     Button(
-        onClick = onClick,
+        onClick = {
+            val info = target
+            if (info != null) {
+                val added = FavoriteRepository.toggle(info)
+                context.toastReplace(
+                    context.getString(
+                        if (added) R.string.toast_favorite_added
+                        else R.string.toast_favorite_removed
+                    )
+                )
+            } else {
+                onClick()
+            }
+        },
         shape = RoundedCornerShape(4.dp),
         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
         colors = ButtonDefaults.buttonColors(
@@ -231,12 +254,12 @@ fun PostAgreeBtn(
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Icon(
-                imageVector = if (hasAgreed) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                imageVector = if (checked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                 contentDescription = stringResource(id = R.string.title_agree),
                 tint = animatedColor,
                 modifier = Modifier.size(16.dp)
             )
-            if (agreeNum > 0) {
+            if (agreeNum > 0 && target == null) {
                 Text(
                     text = agreeNum.getShortNumString(),
                     color = animatedColor,
@@ -1927,7 +1950,15 @@ fun PostCard(
                                 PostAgreeBtn(
                                     hasAgreed = hasAgreed,
                                     agreeNum = agreeNum,
-                                    onClick = onAgree
+                                    onClick = onAgree,
+                                    favoriteInfo = remember(threadId, threadTitle, curForumName) {
+                                        ThreadFavoriteInfo(
+                                            threadId = threadId,
+                                            title = threadTitle,
+                                            forumName = curForumName.orEmpty(),
+                                            authorName = author?.get { nameShow }
+                                        )
+                                    }
                                 )
                             }
                         }

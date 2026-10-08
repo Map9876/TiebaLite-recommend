@@ -109,6 +109,21 @@ fun Context.toastShort(text: String) {
     runCatching { Toast.makeText(this, text, Toast.LENGTH_SHORT).show() }
 }
 
+/**
+ * 立刻用新文案顶掉上一条提示。连续点收藏时不会再排成一串、一条比一条滞后。
+ */
+fun Context.toastReplace(text: String) {
+    runCatching {
+        toastSingleton?.cancel()
+        Toast.makeText(this, text, Toast.LENGTH_SHORT).also {
+            toastSingleton = it
+            it.show()
+        }
+    }
+}
+
+private var toastSingleton: Toast? = null
+
 fun Context.toastShort(resId: Int, vararg args: Any) {
     toastShort(getString(resId, *args))
 }
