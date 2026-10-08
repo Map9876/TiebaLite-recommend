@@ -400,4 +400,3 @@ object FavoriteRepository {
         added
     }
 }
-}
