@@ -986,6 +986,14 @@ fun ThreadPage(
             postHolder = item,
             contentRenders = contentRenders,
             subPosts = subPosts,
+            favoriteInfo = remember(threadId, threadTitle, curForumName, author) {
+                ThreadFavoriteInfo(
+                    threadId = threadId,
+                    title = threadTitle,
+                    forumName = curForumName.orEmpty(),
+                    authorName = author?.get { nameShow }
+                )
+            },
             threadAuthorId = author?.get { id } ?: 0L,
             blocked = blocked,
             canDelete = { it.author_id == user.get { id } },
@@ -1813,6 +1821,7 @@ fun PostCard(
     onMenuCopyClick: ((String) -> Unit)? = null,
     onMenuFavoriteClick: ((Post) -> Unit)? = null,
     onMenuDeleteClick: ((Post) -> Unit)? = null,
+    favoriteInfo: ThreadFavoriteInfo? = null,
 ) {
     val context = LocalContext.current
     val navigator = LocalNavigator.current
@@ -1951,14 +1960,7 @@ fun PostCard(
                                     hasAgreed = hasAgreed,
                                     agreeNum = agreeNum,
                                     onClick = onAgree,
-                                    favoriteInfo = remember(threadId, threadTitle, curForumName) {
-                                        ThreadFavoriteInfo(
-                                            threadId = threadId,
-                                            title = threadTitle,
-                                            forumName = curForumName.orEmpty(),
-                                            authorName = author?.get { nameShow }
-                                        )
-                                    }
+                                    favoriteInfo = favoriteInfo
                                 )
                             }
                         }

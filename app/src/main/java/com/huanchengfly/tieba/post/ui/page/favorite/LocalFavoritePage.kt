@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -297,7 +298,7 @@ fun LocalFavoritePage(
             // 自己画一个定高的搜索框：SearchBox 那个组件会把自己撑满，
             // 结果整个列表都被顶没了
             Row(
-                verticalAlignment = CenterVertically,
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 6.dp)
