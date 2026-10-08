@@ -78,6 +78,39 @@
 
 对应实现 `SwanTiebaApi.parseCreateTime()`。
 
+#### 排查记录：这个结论错在哪
+
+留档给以后改这块的人：
+
+> 时间和热门是同一个接口，一次请求就带回来了，不用额外调。
+>
+> 就是 `GET https://tiebaswan.baidu.com/c/f/frs/page?kw=<吧名>&tab_id=2&...`，
+> 时间戳在返回的 `page_data.feed_list[].feed.components[]` 里，
+> `component == "feed_head"` 那个对象的 `extra_data` 数组中：
+>
+> ```json
+> "extra_data": [
+>   { "type": 1, "text": { "text": "1790815105", "type": 3 } },
+>   { "type": 1, "text": { "text": "戴森球计划吧吧主", "type": 0 } }
+> ]
+> ```
+>
+> `text.type == 3` 那项的 `text.text` 就是秒级 Unix 时间戳。同一数组里混着
+> 吧主徽章之类的纯文本（`type` 为 0），必须按 type 筛。
+>
+> 这个坑值得记一下：**字段名就叫 `text`，时间语义藏在兄弟字段 `type` 上。**
+> 连续两次断言「接口不返回发帖时间」都是错的，原因是用了
+> 「递归遍历找 key 含 time/date/create」的扫法——这种写法对
+> 字段名和值语义不一致的数据天然无效。
+>
+> 是靠「直接打开网页就能看到『回复于 xx 前』」这个观察推翻的，然后
+> Playwright 扒小程序页面脚本，在 `uni-frs.swan.js` 里搜到「回复于」，
+> 顺着模板变量追到 `feed_head.extra_data` 才定位到。
+>
+> **教训：下「某字段不存在」的结论之前，先 dump 一条完整样本出来逐字段看，
+> 别指望正则扫字段名。**
+
+
 ### 怎么抓包 / 怎么验证接口
 
 网页入口（都会302 到小程序 frs 页）：
