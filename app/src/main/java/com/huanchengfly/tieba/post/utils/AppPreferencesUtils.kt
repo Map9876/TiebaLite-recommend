@@ -118,6 +118,13 @@ open class AppPreferencesUtils private constructor(ctx: Context) {
 
     /** 默认不显示「动态」栏，太容易分散注意力；设置里可以再打开 */
     var hideExplore by DataStoreDelegates.boolean(defaultValue = true)
+    /**
+     * 导出目录。空串表示用 App 私有目录（Android/data/.../files/tieba_favorites）；
+     * 非空是用户通过系统文件夹选择器授权的 Uri 字符串，导出会写到这里。
+     * 授权后卸载 App 也能保留文件。
+     */
+    var exportDirUri by DataStoreDelegates.string(defaultValue = "")
+
 
     var hideForumIntroAndStat by DataStoreDelegates.boolean(defaultValue = false)
 

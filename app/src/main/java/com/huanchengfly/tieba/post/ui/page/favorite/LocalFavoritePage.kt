@@ -1,6 +1,7 @@
 package com.huanchengfly.tieba.post.ui.page.favorite
 
 import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -66,6 +67,8 @@ import com.huanchengfly.tieba.post.arch.onEvent
 import com.huanchengfly.tieba.post.arch.pageViewModel
 import com.huanchengfly.tieba.post.models.database.Favorite
 import com.huanchengfly.tieba.post.repository.FavoriteRepository
+import com.huanchengfly.tieba.post.utils.FavoriteExportDir
+import com.huanchengfly.tieba.post.utils.appPreferences
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
 import com.huanchengfly.tieba.post.ui.page.destinations.ThreadPageDestination
 import com.huanchengfly.tieba.post.ui.widgets.compose.ActionItem
@@ -153,6 +156,28 @@ fun LocalFavoritePage(
     )
     val isError by remember { derivedStateOf { error != null } }
 
+    // 导出目录：用户选文件夹，授权后卸载 App 文件也还在
+    var exportDirUri by remember {
+        mutableStateOf(context.appPreferences.exportDirUri)
+    }
+    val exportDirLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { treeUri ->
+        if (treeUri == null) return@rememberLauncherForActivityResult
+        runCatching {
+            // 拿到长期读写权，不然下次进 App 就失效了
+            context.contentResolver.takePersistableUriPermission(
+                treeUri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+        }
+        context.appPreferences.exportDirUri = treeUri.toString()
+        exportDirUri = treeUri.toString()
+        // 已经导出过的文件顺手挪过去（静默，不弹提示——回调里没有协程作用域，
+        // 加提示反而要额外引入 scope，先不做）
+        FavoriteExportDir.migrateToUserDir(context)
+    }
+
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -178,26 +203,34 @@ fun LocalFavoritePage(
     }
     viewModel.onEvent<LocalFavoriteUiEvent.Exported> { event ->
         runCatching {
-            val (file, mime) = when (event.kind) {
-                FavoriteExportKind.HTML ->
-                    FavoriteHtmlExporter.writeToFile(context, event.content) to "text/html"
+            val result = when (event.kind) {
+                FavoriteExportKind.HTML -> FavoriteExportDir.write(
+                    context, event.content, "tieba_favorites", "html"
+                ).copy(mime = "text/html")
 
-                FavoriteExportKind.LINKS ->
-                    writeTextFile(context, event.content, "tieba_favorites_links") to "text/plain"
+                FavoriteExportKind.LINKS -> FavoriteExportDir.write(
+                    context, event.content, "tieba_favorites_links", "txt"
+                ).copy(mime = "text/plain")
 
-                FavoriteExportKind.BACKUP ->
-                    writeTextFile(context, event.content, "tieba_favorites_backup") to "application/json"
+                FavoriteExportKind.BACKUP -> FavoriteExportDir.write(
+                    context, event.content, "tieba_favorites_backup", "json"
+                ).copy(mime = "application/json")
             }
-            val uri = FileProvider.getUriForFile(context, PROVIDER, file)
+            // 私有目录用 FileProvider，用户目录直接用 SAF 给回来的 Uri
+            val shareUri: Uri = when (val target = result.uri) {
+                is File -> FileProvider.getUriForFile(context, PROVIDER, target)
+                is Uri -> target
+                else -> throw IllegalStateException("未知的导出目标")
+            }
             val intent = Intent(Intent.ACTION_SEND).apply {
-                type = mime
-                putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra(Intent.EXTRA_SUBJECT, file.name)
+                type = result.mime
+                putExtra(Intent.EXTRA_STREAM, shareUri)
+                putExtra(Intent.EXTRA_SUBJECT, result.displayName)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            context.startActivity(Intent.createChooser(intent, file.name))
+            context.startActivity(Intent.createChooser(intent, result.displayName))
             scaffoldState.snackbarHostState.showSnackbar(
-                context.getString(R.string.toast_favorite_exported, file.name)
+                context.getString(R.string.toast_favorite_exported, result.path)
             )
         }.onFailure {
             runCatching {
@@ -368,6 +401,50 @@ fun LocalFavoritePage(
                     }
                 )
             }
+            // 导出目录：默认 App 私有目录，授权后写到用户选的文件夹
+            // （卸载 App 文件也还在）。放搜索框下面，不再往设置页里藏
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 12.dp, end = 12.dp, bottom = 4.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.title_favorite_export_dir),
+                    fontSize = 12.sp,
+                    color = ExtendedTheme.colors.textSecondary,
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (exportDirUri.isBlank())
+                        stringResource(R.string.title_favorite_export_dir_private)
+                    else stringResource(R.string.title_favorite_export_dir_user),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = ExtendedTheme.colors.text,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                TextButton(onClick = { exportDirLauncher.launch(null) }) {
+                    Text(
+                        text = stringResource(R.string.button_favorite_export_dir_change),
+                        fontSize = 12.sp
+                    )
+                }
+                if (exportDirUri.isNotBlank()) {
+                    TextButton(onClick = {
+                        context.appPreferences.exportDirUri = ""
+                        exportDirUri = ""
+                    }) {
+                        Text(
+                            text = stringResource(R.string.button_favorite_export_dir_reset),
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+
             StateScreen(
                 isEmpty = data.isEmpty(),
                 isError = isError,
