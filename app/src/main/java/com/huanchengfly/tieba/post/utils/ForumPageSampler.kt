@@ -11,8 +11,6 @@ import org.litepal.LitePal
 import org.litepal.extension.deleteAll
 import org.litepal.extension.find
 import org.litepal.extension.findFirst
-import org.litepal.extension.save
-import org.litepal.extension.update
 
 /**
  * 「想看某个月的帖子 → 大概翻到第几页」的稀疏采样映射。

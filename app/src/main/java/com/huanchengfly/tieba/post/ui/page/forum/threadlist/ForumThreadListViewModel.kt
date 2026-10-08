@@ -207,13 +207,14 @@ private class ForumThreadListPartialChangeProducer(val type: ForumThreadListType
             FrsPageRepository.threadList(forumId, forumName, targetPage, sortType, "")
                 .map { response ->
                     if (response.data_ == null) throw TiebaUnknownException
+                    val list = response.data_.thread_list
                     ForumThreadListPartialChange.JumpToPage.Success(
-                        threadList = response.data_.thread_list
-                            .map { ThreadItemData(it.wrapImmutable()) },
-                        // 服务端会把它当成下一批的起点，后续下拉继续用
-                        threadListIds = response.data_.thread_id_list,
+                        threadList = list.map { ThreadItemData(it.wrapImmutable()) },
+                        // ThreadListResponse 没有 thread_id_list 字段，
+                        // 游标就用这一页的 tid，跟 LoadMore 的语义保持一致
+                        threadListIds = list.map { it.tid },
                         currentPage = targetPage,
-                        hasMore = response.data_.thread_list.isNotEmpty()
+                        hasMore = list.isNotEmpty()
                     )
                 }
         }

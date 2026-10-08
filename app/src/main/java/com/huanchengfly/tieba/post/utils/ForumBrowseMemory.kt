@@ -8,7 +8,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.litepal.LitePal
 import org.litepal.extension.findFirst
-import org.litepal.extension.save
 
 /**
  * 「上次翻到哪了」的记账 + 估算。
