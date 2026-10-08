@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <litepal>
     <dbname value="tblite" />
-    <version value="39" />
+    <version value="40" />
     <list>
         <mapping class="com.huanchengfly.tieba.post.models.database.Favorite" />
         <mapping class="com.huanchengfly.tieba.post.models.database.ForumBrowse" />
+        <mapping class="com.huanchengfly.tieba.post.models.database.ForumPageSample" />
         <mapping class="com.huanchengfly.tieba.post.models.database.Account" />
         <mapping class="com.huanchengfly.tieba.post.models.database.Draft" />
         <mapping class="com.huanchengfly.tieba.post.models.database.History" />

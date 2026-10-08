@@ -19,6 +19,7 @@ import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.Icon
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.DateRange
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.IconButton
@@ -55,7 +56,9 @@ import com.huanchengfly.tieba.post.ui.widgets.compose.Card
 import com.huanchengfly.tieba.post.ui.widgets.compose.ErrorScreen
 import com.huanchengfly.tieba.post.ui.widgets.compose.LoadMoreLayout
 import com.huanchengfly.tieba.post.ui.widgets.compose.MyLazyColumn
+import com.huanchengfly.tieba.post.ui.widgets.compose.PromptDialog
 import com.huanchengfly.tieba.post.ui.widgets.compose.NetworkImage
+import com.huanchengfly.tieba.post.ui.widgets.compose.rememberDialogState
 import com.huanchengfly.tieba.post.ui.widgets.compose.Sizes
 import com.huanchengfly.tieba.post.ui.widgets.compose.ThreadAgreeBtn
 import com.huanchengfly.tieba.post.ui.widgets.compose.ThreadContent
@@ -65,8 +68,10 @@ import com.huanchengfly.tieba.post.ui.widgets.compose.ThreadShareBtn
 import com.huanchengfly.tieba.post.ui.widgets.compose.UserHeader
 import com.huanchengfly.tieba.post.ui.widgets.compose.states.StateScreen
 import com.huanchengfly.tieba.post.models.database.ForumBrowse
+import com.huanchengfly.tieba.post.models.database.ForumPageSample
 import com.huanchengfly.tieba.post.utils.DateTimeUtils.getRelativeTimeString
 import com.huanchengfly.tieba.post.utils.ForumBrowseMemory
+import com.huanchengfly.tieba.post.utils.ForumPageSampler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -122,8 +127,27 @@ fun HotThreadListPage(
 
         // 上次翻到哪了
         var lastSeen by remember(forumName) { mutableStateOf<ForumBrowse?>(null) }
+        var samples by remember(forumName) { mutableStateOf(emptyList<ForumPageSample>()) }
+        var jumpHint by remember(forumName) { mutableStateOf<String?>(null) }
+        val jumpToDateDialog = rememberDialogState()
         LaunchedEffect(forumName) {
             lastSeen = ForumBrowseMemory.load(forumName, SwanTiebaApi.TAB_HOT)
+            samples = ForumPageSampler.samples(forumName, SwanTiebaApi.TAB_HOT)
+        }
+
+        // 后台锚定：按 2/4/8/16… 的稀疏序列自动采样，把「页码↔日期」表建起来，
+        // 这样「跳到 9 月初」能估出大致页码。离开页面时协程自动取消。
+        LaunchedEffect(forumName) {
+            runCatching {
+                ForumPageSampler.backgroundProbe(forumName, SwanTiebaApi.TAB_HOT) { probePage ->
+                    SwanTiebaApi.threads(
+                        forumName = forumName,
+                        page = probePage,
+                        tabId = SwanTiebaApi.TAB_HOT
+                    )
+                }
+            }
+            samples = ForumPageSampler.samples(forumName, SwanTiebaApi.TAB_HOT)
         }
         // 每拿到一批就把进度记下来（后台协程，不挡UI）
         LaunchedEffect(data.size, currentPage, forumName) {
@@ -132,7 +156,50 @@ fun HotThreadListPage(
                 ForumBrowseMemory.record(
                     forumName, SwanTiebaApi.TAB_HOT, currentPage, data
                 )
+                // 顺手攒一个「页码 → 时间范围」的采样点，用来估算「看某个月大概翻到第几页」。
+                // 不额外发请求：这批数据本来就是刚拉回来的
+                ForumPageSampler.record(forumName, SwanTiebaApi.TAB_HOT, currentPage, data)
             }
+        }
+
+        // 「跳到指定日期」：靠采样点插值估算页码，估不准也无所谓，往下翻能接上
+        PromptDialog(
+            dialogState = jumpToDateDialog,
+            onConfirm = { input ->
+                val target = parseTargetDate(input)
+                if (target == null) {
+                    jumpHint = "看不懂这个日期，试试 2026-09-01 或 0901"
+                } else {
+                    val page = ForumPageSampler.estimatePage(samples, target)
+                    if (page == null) {
+                        val oldest = ForumPageSampler.oldestCovered(samples)
+                        jumpHint = if (oldest <= 0) {
+                            "还没有采样点，先往后翻几页再试"
+                        } else {
+                            "现有采样只探到 ${formatDay(oldest)}，" +
+                                "再往后翻几页就能定位到更早的"
+                        }
+                    } else {
+                        viewModel.send(
+                            HotThreadUiIntent.JumpTo(
+                                forumName = forumName,
+                                page = page,
+                                anchorTid = lastSeen?.anchorTid ?: 0L
+                            )
+                        )
+                        jumpHint = "已跳到第 $page 页附近，往下翻对照标题找 ${
+                            formatDay(target)
+                        }的帖子"
+                    }
+                }
+            },
+            title = { Text(text = "跳到指定日期") },
+        ) {
+            Text(
+                text = "输入日期，如 2026-09-01 或 0901",
+                fontSize = 12.sp,
+                color = ExtendedTheme.colors.textSecondary,
+            )
         }
 
         StateScreen(
@@ -215,6 +282,16 @@ fun HotThreadListPage(
                                     )
                                 }
                                 IconButton(
+                                    onClick = { jumpToDateDialog.show() },
+                                    enabled = !isRefreshing,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.DateRange,
+                                        contentDescription = "跳到指定日期",
+                                        tint = ExtendedTheme.colors.textSecondary,
+                                    )
+                                }
+                                IconButton(
                                     onClick = {
                                         viewModel.send(
                                             HotThreadUiIntent.Refresh(forumName, force = true)
@@ -228,6 +305,18 @@ fun HotThreadListPage(
                                         tint = ExtendedTheme.colors.textSecondary,
                                     )
                                 }
+                            }
+                        }
+                        if (jumpHint != null) {
+                            item(key = "JumpHint") {
+                                Text(
+                                    text = jumpHint.orEmpty(),
+                                    fontSize = 11.sp,
+                                    color = ExtendedTheme.colors.textSecondary,
+                                    modifier = Modifier.padding(
+                                        start = 16.dp, end = 16.dp, bottom = 6.dp
+                                    )
+                                )
                             }
                         }
                         if (anchorMissing) {
@@ -260,6 +349,45 @@ fun HotThreadListPage(
                 )
             }
         }
+}
+
+/**
+ * 解析用户输入的目标日期。支持 `2026-09-01`、`2026/9/1`、`0901`。
+ * 解析不了返回 null，交给调用方提示——不猜。
+ */
+private fun parseTargetDate(input: String): Long? {
+    val text = input.trim()
+    if (text.isEmpty()) return null
+    val (y, m, d) = when {
+        Regex("^\\d{4}[-/]\\d{1,2}[-/]\\d{1,2}$").matches(text) -> {
+            val p = text.split('-', '/')
+            Triple(p[0].toInt(), p[1].toInt(), p[2].toInt())
+        }
+
+        // 20260901
+        Regex("^\\d{8}$").matches(text) -> {
+            Triple(
+                text.substring(0, 4).toInt(),
+                text.substring(4, 6).toInt(),
+                text.substring(6, 8).toInt()
+            )
+        }
+
+        // 0901
+        Regex("^\\d{4}$").matches(text) -> {
+            // 0901 这种：补上当前年份
+            Triple(java.util.Calendar.getInstance().get(java.util.Calendar.YEAR),
+                text.substring(0, 2).toInt(), text.substring(2).toInt())
+        }
+
+        else -> return null
+    }
+    return runCatching {
+        java.util.Calendar.getInstance().apply {
+            clear()
+            set(y, m - 1, d, 12, 0, 0)
+        }.timeInMillis / 1000
+    }.getOrNull()
 }
 
 private fun formatDay(timeSeconds: Long): String =
