@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEach
 import com.huanchengfly.tieba.post.R
+import com.huanchengfly.tieba.post.models.ThreadFavoriteInfo
 import com.huanchengfly.tieba.post.api.models.SearchThreadBean
 import com.huanchengfly.tieba.post.arch.BaseComposeActivity
 import com.huanchengfly.tieba.post.ui.common.PbContentText
@@ -305,7 +306,18 @@ fun SearchThreadItem(
                     hasAgree = false,
                     agreeNum = item.likeNum.toInt(),
                     onClick = {},
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    favoriteInfo = remember(item) {
+                        item.tid.toLongOrNull()?.let { tid ->
+                            ThreadFavoriteInfo(
+                                threadId = tid,
+                                title = item.title,
+                                forumName = item.forumName,
+                                authorName = item.user.showNickname ?: item.user.userName,
+                                abstractText = item.content,
+                            )
+                        }
+                    }
                 )
 
                 ThreadShareBtn(

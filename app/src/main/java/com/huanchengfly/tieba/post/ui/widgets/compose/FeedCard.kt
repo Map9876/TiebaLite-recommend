@@ -737,8 +737,9 @@ fun ThreadAgreeBtn(
         modifier = modifier,
         color = animatedColor,
         onClick = {
-            if (target != null) {
-                val added = FavoriteRepository.toggle(target)
+            val info = target
+            if (info != null) {
+                val added = FavoriteRepository.toggle(info)
                 context.toastShort(
                     context.getString(
                         if (added) R.string.toast_favorite_added
@@ -747,6 +748,9 @@ fun ThreadAgreeBtn(
                 )
                 onFavorite?.invoke(added)
             } else {
+                // 这个界面拿不到帖子信息（比如搜索结果页以前就是空实现），
+                // 以前什么都不做，点了像坏了。现在明确说一声。
+                context.toastShort(context.getString(R.string.toast_favorite_unsupported))
                 onClick()
             }
         }
