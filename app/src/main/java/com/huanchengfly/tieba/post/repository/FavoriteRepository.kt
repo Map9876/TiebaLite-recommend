@@ -1,8 +1,8 @@
 package com.huanchengfly.tieba.post.repository
 
 import com.huanchengfly.tieba.post.models.ThreadFavoriteInfo
-import com.huanchengfly.tieba.post.api.TiebaApi
 import com.huanchengfly.tieba.post.models.database.Favorite
+import com.huanchengfly.tieba.post.utils.FavoriteHtmlExporter
 import com.huanchengfly.tieba.post.utils.ThreadViewCache
 import com.huanchengfly.tieba.post.utils.extension.findFlow
 import kotlinx.coroutines.Dispatchers
@@ -11,7 +11,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -224,45 +223,6 @@ object FavoriteRepository {
         val items: List<ExportItem> = emptyList(),
     )
 
-    /**
-     * 异步补封面。
-     *
-     * 贴吧图片过期后不报 403，而是返回一张 238x238 的默认图标，
-     * 所以「封面还在不在」不能用 HTTP 状态码判断。做法是：
-     * 列表先按现有封面照常显示（不阻塞），这里后台把图抓下来看尺寸，
-     * 确认是占位图就再去请求一次帖子详情，拿一楼首图写回库。
-     */
-    fun refreshCoverIfPlaceholder(favorite: Favorite) {
-        val url = favorite.coverUrl?.takeIf { it.isNotBlank() } ?: return
-        GlobalScope.launch(Dispatchers.IO) {
-            runCatching {
-                if (!FavoriteHtmlExporter.isPlaceholderImage(url)) return@runCatching
-                // pbPageFlow 是 Flow，取第一个（也就是第一页）
-                val fresh = TiebaApi.getInstance()
-                    .pbPageFlow(threadId = favorite.threadId, page = 1)
-                    .first()
-                    .data_
-                    ?.post_list
-                    ?.firstOrNull()
-                    ?.content
-                    ?.asSequence()
-                    // type == 3 是图片；src / originSrc / bigSrc / cdnSrc 依次取第一个非空
-                    ?.filter { it.type == 3 }
-                    ?.map {
-                        it.originSrc.ifBlank { it.bigSrc.ifBlank { it.src.ifBlank { it.cdnSrc } } }
-                    }
-                    ?.map { FavoriteHtmlExporter.stripQuery(it) }
-                    ?.firstOrNull { it.isNotBlank() }
-                    ?: return@runCatching
-                val old = LitePal.where("threadId = ?", favorite.threadId.toString())
-                    .findFirst<Favorite>() ?: return@runCatching
-                old.copy(coverUrl = fresh).update(old.id)
-                refreshIds()
-                _changes.tryEmit(Unit)
-            }
-        }
-    }
-
     suspend fun exportPayload(ids: Collection<Long>? = null): String = withContext(Dispatchers.IO) {
         val list = if (ids == null) getAll() else getByIds(ids)
         json.encodeToString(
@@ -285,93 +245,6 @@ object FavoriteRepository {
     }
 
     /** 导入，返回新增条数 */
-    /**
-     * 导入。三种导出格式都能吃回来：
-     *
-     * - **json**：完整备份（正文、图片、楼层结构、封面），按 threadId 去重合并
-     * - **txt**：「标题\t链接\t吧\t作者\t收藏时间」逐行，只恢复条目本身
-     * - **html**：从导出的网页里解析出 `<section class="post" id="t<threadId>"`
-     *   和标题，同样只恢复条目本身
-     */
-    suspend fun importAny(raw: String): Int = withContext(Dispatchers.IO) {
-        when {
-            raw.trimStart().startsWith("{") -> importPayload(raw)
-            raw.contains("<!DOCTYPE html>") || raw.contains("<section class=\"post\"") ->
-                importHtml(raw)
-
-            else -> importLinks(raw)
-        }
-    }
-
-    /** 从导出的 HTML 里把帖子条目捞回来 */
-    private fun importHtml(html: String): Int {
-        val sectionRe =
-            Regex("<section[^>]*class=\"post\"[^>]*id=\"t(\\d+)\"[^>]*>([\\s\\S]*?)</section>")
-        val titleRe = Regex("<h2>([\\s\\S]*?)</h2>")
-        var added = 0
-        sectionRe.findAll(html).forEach { m ->
-            val threadId = m.groupValues[1].toLongOrNull() ?: return@forEach
-            if (threadId == 0L) return@forEach
-            if (LitePal.where("threadId = ?", threadId.toString()).findFirst<Favorite>() != null) {
-                return@forEach
-            }
-            val title = titleRe.find(m.groupValues[2])?.groupValues[1]
-                ?.let { unescapeHtml(it) }
-                ?.takeIf { it.isNotBlank() }
-                ?: "(来自 HTML 导入)"
-            Favorite(
-                threadId = threadId,
-                title = title,
-                forumName = "",
-                url = "https://tieba.baidu.com/p/$threadId",
-            ).save()
-            added++
-        }
-        if (added > 0) {
-            refreshIds()
-            _changes.tryEmit(Unit)
-        }
-        return added
-    }
-
-    private fun unescapeHtml(text: String): String = text
-        .replace("&amp;", "&")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .replace("&#39;", "'")
-        .trim()
-
-    /** 导入「链接+标题」的 txt（标题\t链接\t吧\t作者\t收藏时间） */
-    private fun importLinks(raw: String): Int {
-        var added = 0
-        raw.lineSequence()
-            .drop(1) // 第一行是表头
-            .map { it.split("\t") }
-            .filter { it.size >= 2 }
-            .forEach { cols ->
-                val url = cols[1].trim()
-                val threadId = Regex("/p/(\\d+)").find(url)?.groupValues[1]?.toLongOrNull()
-                    ?: return@forEach
-                if (LitePal.where("threadId = ?", threadId.toString()).findFirst<Favorite>() != null) {
-                    return@forEach
-                }
-                Favorite(
-                    threadId = threadId,
-                    title = cols[0].trim().ifBlank { "(来自链接导入)" },
-                    forumName = cols.getOrNull(2)?.trim().orEmpty(),
-                    authorName = cols.getOrNull(3)?.trim()?.takeIf { it.isNotBlank() },
-                    url = url.ifBlank { "https://tieba.baidu.com/p/$threadId" },
-                ).save()
-                added++
-            }
-        if (added > 0) {
-            refreshIds()
-            _changes.tryEmit(Unit)
-        }
-        return added
-    }
-
     suspend fun importPayload(raw: String): Int = withContext(Dispatchers.IO) {
         val payload = json.decodeFromString(ExportPayload.serializer(), raw)
         var added = 0

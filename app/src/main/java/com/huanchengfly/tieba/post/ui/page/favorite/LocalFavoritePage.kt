@@ -65,7 +65,6 @@ import com.huanchengfly.tieba.post.arch.collectPartialAsState
 import com.huanchengfly.tieba.post.arch.onEvent
 import com.huanchengfly.tieba.post.arch.pageViewModel
 import com.huanchengfly.tieba.post.models.database.Favorite
-import com.huanchengfly.tieba.post.repository.FavoriteRepository
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
 import com.huanchengfly.tieba.post.ui.page.destinations.ThreadPageDestination
 import com.huanchengfly.tieba.post.ui.widgets.compose.ActionItem
@@ -442,11 +441,6 @@ private fun FavoriteItem(
 ) {
     val context = LocalContext.current
     val menuState = rememberMenuState()
-    // 封面先照常显示（不阻塞）；后台判断它是不是已经变成 238x238 的占位图，
-    // 是的话异步补一张一楼图片回来
-    LaunchedEffect(favorite.threadId, favorite.coverUrl) {
-        FavoriteRepository.refreshCoverIfPlaceholder(favorite)
-    }
     LongClickMenu(
         menuContent = {
             DropdownMenuItem(onClick = {
