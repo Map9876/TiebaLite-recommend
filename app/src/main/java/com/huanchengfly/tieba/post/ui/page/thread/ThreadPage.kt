@@ -1180,10 +1180,20 @@ fun ThreadPage(
                 bottomBar = {
                     BottomBar(
                         user = user,
-                        coverUrl = remember(firstPost, firstPostContentRenders) {
-                            firstPostContentRenders.filterIsInstance<PicContentRender>()
-                                .firstOrNull()
-                                ?.let { it.originUrl.ifBlank { it.picUrl } }
+                        favoriteInfo = remember(
+                            threadId, threadTitle, curForumName, author,
+                            firstPostContentRenders
+                        ) {
+                            ThreadFavoriteInfo(
+                                threadId = threadId,
+                                title = threadTitle,
+                                forumName = curForumName.orEmpty(),
+                                authorName = author?.get { nameShow },
+                                coverUrl = firstPostContentRenders
+                                    .filterIsInstance<PicContentRender>()
+                                    .firstOrNull()
+                                    ?.let { it.originUrl.ifBlank { it.picUrl } }
+                            )
                         },
                         onClickReply = {
                             navigator.navigate(
@@ -1715,7 +1725,7 @@ private fun BottomBar(
     modifier: Modifier = Modifier,
     hasAgreed: Boolean = false,
     agreeNum: Long = 0,
-    coverUrl: String? = null,
+    favoriteInfo: ThreadFavoriteInfo? = null,
 ) {
     Column(
         modifier = Modifier.background(ExtendedTheme.colors.threadBottomBar)
@@ -1759,15 +1769,7 @@ private fun BottomBar(
             }
 
             BottomBarAgreeBtn(
-                favoriteInfo = remember(threadId, threadTitle, curForumName, author, coverUrl) {
-                    ThreadFavoriteInfo(
-                        threadId = threadId,
-                        title = threadTitle,
-                        forumName = curForumName.orEmpty(),
-                        authorName = author?.get { nameShow },
-                        coverUrl = coverUrl
-                    )
-                },
+                favoriteInfo = favoriteInfo,
                 onAgree = onAgree,
                 modifier = Modifier.fillMaxHeight()
             )
