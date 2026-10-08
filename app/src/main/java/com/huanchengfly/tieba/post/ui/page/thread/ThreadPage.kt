@@ -950,6 +950,10 @@ fun ThreadPage(
                 floors = floors,
             )
         }
+        // 必须在 record 之后：回填要读刚写进去的快照。
+        // 收藏可能是在列表里点的（当时没看过帖子），这里把缓冲区内容补给那条记录，
+        // 之后导出的 HTML 才不会是空壳
+        FavoriteRepository.backfillFromCache(threadId)
     }
 
     val pullRefreshState = rememberPullRefreshState(

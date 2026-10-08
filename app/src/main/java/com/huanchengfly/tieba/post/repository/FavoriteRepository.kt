@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.maxOf
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.litepal.LitePal
@@ -109,6 +110,34 @@ object FavoriteRepository {
                 }
             }
             _favoriteIds.value = _favoriteIds.value + info.threadId
+        }
+    }
+
+    /**
+     * 浏览缓冲区有内容时，回填到已存在的收藏记录上。
+     *
+     * 两种场景都靠它：
+     * ① 从列表收藏时没看帖子 → 落库的 content 是空的；之后进详情页看了，
+     *    缓冲区就有内容了，这里补上，导出 HTML 才不会是空壳
+     * ② 详情页收藏后退出、再进来看更多 → 缓冲区更新，这里同步进库
+     *
+     * 走导出时读的是数据库，所以浏览缓冲区过期也不影响已落库的内容。
+     */
+    fun backfillFromCache(threadId: Long) {
+        val snapshot = ThreadViewCache.snapshotContent(threadId) ?: return
+        if (snapshot.text.isBlank()) return
+        GlobalScope.launch(Dispatchers.IO) {
+            val old = LitePal.where("threadId = ?", threadId.toString()).findFirst<Favorite>()
+                ?: return@launch
+            // 已经存了更长的内容就不覆盖（用户可能看过更多）
+            if ((old.content?.length ?: 0) >= snapshot.text.length) return@launch
+            old.copy(
+                content = snapshot.text,
+                imageUrls = snapshot.imageUrls.joinToString("\n")
+                    .ifBlank { old.imageUrls },
+                coverUrl = old.coverUrl ?: snapshot.imageUrls.firstOrNull(),
+                lastPage = maxOf(old.lastPage, snapshot.maxPage),
+            ).update(old.id)
         }
     }
 
