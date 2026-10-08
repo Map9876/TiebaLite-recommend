@@ -72,6 +72,7 @@ object FavoriteRepository {
                 url = info.url.ifBlank { "https://tieba.baidu.com/p/${info.threadId}" },
                 content = cached?.text,
                 imageUrls = cached?.imageUrls?.joinToString("\n"),
+                coverUrl = info.coverUrl ?: cached?.imageUrls?.firstOrNull(),
                 lastPage = cached?.maxPage ?: 0,
             ).save()
         }
@@ -97,6 +98,7 @@ object FavoriteRepository {
                     .ifBlank { "https://tieba.baidu.com/p/${info.threadId}" },
                 content = content ?: old?.content,
                 imageUrls = imageUrls?.joinToString("\n") ?: old?.imageUrls,
+                coverUrl = info.coverUrl ?: old?.coverUrl,
                 lastPage = if (lastPage > 0) lastPage else old?.lastPage ?: 0,
                 timestamp = old?.timestamp ?: System.currentTimeMillis(),
             ).let { new ->
@@ -159,6 +161,7 @@ object FavoriteRepository {
         val url: String = "",
         val content: String? = null,
         val imageUrls: String? = null,
+        val coverUrl: String? = null,
         val lastPage: Int = 0,
         val timestamp: Long = 0,
     )
@@ -183,6 +186,7 @@ object FavoriteRepository {
                     url = it.url,
                     content = it.content,
                     imageUrls = it.imageUrls,
+                    coverUrl = it.coverUrl,
                     lastPage = it.lastPage,
                     timestamp = it.timestamp,
                 )
@@ -207,6 +211,7 @@ object FavoriteRepository {
                 url = item.url.ifBlank { "https://tieba.baidu.com/p/${item.threadId}" },
                 content = item.content,
                 imageUrls = item.imageUrls,
+                coverUrl = item.coverUrl,
                 lastPage = item.lastPage,
                 timestamp = item.timestamp,
             ).save()

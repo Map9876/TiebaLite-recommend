@@ -16,6 +16,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapConcat
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -33,7 +34,7 @@ class HotThreadListViewModel @Inject constructor() :
 
     override fun createPartialChangeProducer():
             PartialChangeProducer<HotThreadUiIntent, HotThreadPartialChange, HotThreadUiState> =
-        HotThreadPartialChangeProducer
+        HotThreadPartialChangeProducer()
 
     override fun dispatchEvent(partialChange: HotThreadPartialChange): UiEvent? = when (partialChange) {
         is HotThreadPartialChange.Refresh.Failure -> CommonUiEvent.Toast(partialChange.error)
@@ -41,11 +42,22 @@ class HotThreadListViewModel @Inject constructor() :
         else -> null
     }
 
-    private object HotThreadPartialChangeProducer :
+    /**
+     * 记住已经加载过的吧：从帖子返回时页面会重新进组合，
+     * 如果这里不拦一下就会又发一次请求，用户看到的就是「列表自己刷新了」。
+     */
+    private class HotThreadPartialChangeProducer :
         PartialChangeProducer<HotThreadUiIntent, HotThreadPartialChange, HotThreadUiState> {
+        private var loadedForum: String? = null
+
         override fun toPartialChangeFlow(intentFlow: Flow<HotThreadUiIntent>): Flow<HotThreadPartialChange> =
             merge(
                 intentFlow.filterIsInstance<HotThreadUiIntent.Refresh>()
+                    .filter { intent ->
+                        val need = intent.force || loadedForum != intent.forumName
+                        if (need) loadedForum = intent.forumName
+                        need
+                    }
                     .flatMapConcat { it.producePartialChange() },
                 intentFlow.filterIsInstance<HotThreadUiIntent.LoadMore>()
                     .flatMapConcat { it.producePartialChange() },
@@ -70,7 +82,8 @@ class HotThreadListViewModel @Inject constructor() :
 }
 
 sealed interface HotThreadUiIntent : UiIntent {
-    data class Refresh(val forumName: String) : HotThreadUiIntent
+    /** [force] 为 true 时无视「已加载过」的判断，强制重新拉 */
+    data class Refresh(val forumName: String, val force: Boolean = false) : HotThreadUiIntent
 
     data class LoadMore(val forumName: String, val page: Int) : HotThreadUiIntent
 }

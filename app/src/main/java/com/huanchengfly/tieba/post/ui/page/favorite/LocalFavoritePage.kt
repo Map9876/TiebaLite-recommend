@@ -31,6 +31,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Checklist
+import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.rememberScaffoldState
@@ -46,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -69,6 +72,7 @@ import com.huanchengfly.tieba.post.ui.widgets.compose.ErrorScreen
 import com.huanchengfly.tieba.post.ui.widgets.compose.LongClickMenu
 import com.huanchengfly.tieba.post.ui.widgets.compose.MyLazyColumn
 import com.huanchengfly.tieba.post.ui.widgets.compose.MyScaffold
+import com.huanchengfly.tieba.post.ui.widgets.compose.NetworkImage
 import com.huanchengfly.tieba.post.ui.widgets.compose.TextButton
 import com.huanchengfly.tieba.post.ui.widgets.compose.TipScreen
 import com.huanchengfly.tieba.post.ui.widgets.compose.TitleCentredToolbar
@@ -212,11 +216,15 @@ fun LocalFavoritePage(
         topBar = {
             TitleCentredToolbar(
                 title = {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    ) {
                         Text(
                             text = stringResource(id = R.string.title_local_favorite),
                             fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.h6
+                            style = MaterialTheme.typography.h6,
+                            maxLines = 1
                         )
                         if (hasSelection) {
                             Text(
@@ -235,36 +243,27 @@ fun LocalFavoritePage(
                 },
                 actions = {
                     // 用文字按钮而不是图标：之前三个「+」/勾/垃圾桶图标用户完全认不出
-                    TextButton(
-                        onClick = {
-                            if (allSelected) {
-                                viewModel.send(LocalFavoriteUiIntent.ClearSelection)
-                            } else {
-                                viewModel.send(
-                                    LocalFavoriteUiIntent.SelectAll(data.map { it.threadId })
-                                )
-                            }
-                        },
-                        modifier = Modifier.padding(horizontal = 2.dp)
-                    ) {
-                        Text(
-                            text = stringResource(
-                                id = if (allSelected) R.string.title_favorite_clear_select
-                                else R.string.title_favorite_select_all
-                            ),
-                            fontSize = 13.sp
+                    // 之前是两个文字按钮，把居中的标题挤到重叠了，收成图标按钮
+                    ActionItem(
+                        icon = if (allSelected) Icons.Rounded.Check else Icons.Rounded.Checklist,
+                        contentDescription = stringResource(
+                            id = if (allSelected) R.string.title_favorite_clear_select
+                            else R.string.title_favorite_select_all
                         )
+                    ) {
+                        if (allSelected) {
+                            viewModel.send(LocalFavoriteUiIntent.ClearSelection)
+                        } else {
+                            viewModel.send(
+                                LocalFavoriteUiIntent.SelectAll(data.map { it.threadId })
+                            )
+                        }
                     }
-                    TextButton(
-                        onClick = {
-                            importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
-                        },
-                        modifier = Modifier.padding(horizontal = 2.dp)
+                    ActionItem(
+                        icon = Icons.Rounded.FileUpload,
+                        contentDescription = stringResource(id = R.string.title_favorite_import)
                     ) {
-                        Text(
-                            text = stringResource(id = R.string.title_favorite_import),
-                            fontSize = 13.sp
-                        )
+                        importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
                     }
                     if (hasSelection) {
                         ActionItem(
@@ -435,10 +434,25 @@ private fun FavoriteItem(
             onClick = onClick,
             content = {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
+                    verticalAlignment = Alignment.Top,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    SelectBox(selected = selected)
+                    // 封面（帖子首图 / 一楼图片）
+                    favorite.coverUrl?.takeIf { it.isNotBlank() }?.let { cover ->
+                        NetworkImage(
+                            imageUri = cover,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(76.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                    }
+                    SelectBox(
+                        selected = selected,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
                     Column(
                         modifier = Modifier
                             .weight(1f)
@@ -484,9 +498,9 @@ private fun FavoriteItem(
 }
 
 @Composable
-private fun SelectBox(selected: Boolean) {
+private fun SelectBox(selected: Boolean, modifier: Modifier = Modifier) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(20.dp)
             .clip(RoundedCornerShape(4.dp))
             .then(

@@ -19,6 +19,7 @@ data class Favorite(
     val url: String = "",
     val content: String? = null,
     val imageUrls: String? = null,
+    val coverUrl: String? = null,
     val lastPage: Int = 0,
     val timestamp: Long = System.currentTimeMillis(),
 ) : LitePalSupport() {

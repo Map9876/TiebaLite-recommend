@@ -14,4 +14,6 @@ data class ThreadFavoriteInfo(
     val authorName: String? = null,
     val abstractText: String? = null,
     val url: String = "https://tieba.baidu.com/p/$threadId",
+    /** 封面图（列表卡片的首图 / 主楼首图），收藏页展示用 */
+    val coverUrl: String? = null,
 )

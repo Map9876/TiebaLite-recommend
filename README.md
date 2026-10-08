@@ -27,10 +27,13 @@
 
 | 需求 | 实现 | 位置 |
 | --- | --- | --- |
-| 吧内热门 tab | 小程序 `tiebaswan.baidu.com/c/f/frs/page` 免登录接口，`tab_id=2` 取热门；参数按字典序拼串 + 固定 SECRET 做 MD5 签名。放在「精华」右边，卡片复用原 `FeedCard`。数据来源就是百度贴吧网页版：[贴吧移动版](https://mbd.baidu.com/ma/s/pS8jRhi9) 和 [小程序的吧内页](https://byokpg.smartapps.baidu.com/pages/frs/frs?aladdin_src_id=61952&kw=%E6%96%B9%E4%BE%BF%E9%9D%A2&_swebfr=26&_swebFromHost=bdhonorbrowser) | `api/swan/SwanTiebaApi.kt`、`ui/page/forum/hotthread/`、`ForumPage` |
-| 免登录收藏 | 帖子卡片右下角的爱心就是本地收藏，**图标不变**，已收藏显示实心；点击有 toast 提示 | `ui/widgets/compose/FeedCard.kt` 的 `ThreadAgreeBtn` |
+| 吧内热门 tab | 首次进入才加载，从帖子返回**不会自动刷新**（列表顶部有手动刷新按钮，下拉也能刷）。小程序 `tiebaswan.baidu.com/c/f/frs/page` 免登录接口，`tab_id=2` 取热门；参数按字典序拼串 + 固定 SECRET 做 MD5 签名。放在「精华」右边，卡片复用原 `FeedCard`。数据来源就是百度贴吧网页版：[贴吧移动版](https://mbd.baidu.com/ma/s/pS8jRhi9) 和 [小程序的吧内页](https://byokpg.smartapps.baidu.com/pages/frs/frs?aladdin_src_id=61952&kw=%E6%96%B9%E4%BE%BF%E9%9D%A2&_swebfr=26&_swebFromHost=bdhonorbrowser) | `api/swan/SwanTiebaApi.kt`、`ui/page/forum/hotthread/`、`ForumPage` |
+| 免登录收藏 | 爱心即本地收藏，**图标不变**，已收藏显示实心；点击有toast 提示。三个位置：
+ ① 列表卡片右下角；② **帖子详情页主楼底栏（三点省略号左边那个）**；
+ ③ 搜索结果页。楼层内部的爱心仍然是原来的楼层点赞 | `FeedCard.kt` 的 `ThreadAgreeBtn`、`ThreadPage.kt` 的 `BottomBarAgreeBtn` |
+| 收藏页封面 | 收藏时记下帖子首图 / 主楼首图，收藏列表里显示 76dp 封面 | `ThreadFavoriteInfo.coverUrl`、`Favorite.coverUrl` |
 | 收藏存哪儿 | LitePal 新表 `Favorite`（`litepal.xml` 37→38），只落本机，不上传 | `models/database/Favorite.kt`、`repository/FavoriteRepository.kt` |
-| 浏览缓冲区 | 详情页翻过的页/正文/图片地址记在**纯内存** LRU（10 分钟 TTL，上划清进程即失效）；不发额外请求、不卡 UI。收藏瞬间把快照一起落库，所以收藏里能搜正文、导出才有内容 | `utils/ThreadViewCache.kt`、`ThreadPage` 的 `LaunchedEffect` |
+| 浏览缓冲区 | 详情页翻过的页/正文/图片地址记在**纯内存** LRU（2 小时 TTL，上划清进程即失效）；不发额外请求、不卡 UI。收藏瞬间把快照一起落库，所以收藏里能搜正文、导出才有内容 | `utils/ThreadViewCache.kt`、`ThreadPage` 的 `LaunchedEffect` |
 | 收藏页 | 关键词搜索（标题/吧名/作者/摘要/**正文**）、多选全选、长按复制链接或删除 | `ui/page/favorite/` |
 | 导出 | ① 单文件 HTML：左侧全部帖子标题目录 + 站内搜索框，图片抓下来转 base64 内嵌，离线可看；② 链接+标题 txt；③ 可再导入的 json 备份 | `utils/FavoriteHtmlExporter.kt` |
 | 导入 | 系统文件选择器选 json，按 threadId 去重合并 | `FavoriteRepository.importPayload` |

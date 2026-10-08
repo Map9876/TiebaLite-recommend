@@ -14,8 +14,13 @@ import kotlin.math.max
  */
 object ThreadViewCache {
 
-    /** 缓冲区有效期：10 分钟 */
-    const val TTL_MILLIS = 10 * 60 * 1000L
+    /**
+     * 缓冲区有效期。
+     *
+     * 一开始设的是 10 分钟，实测太短：看完帖子逛一下别的再回列表点收藏，
+     * 快照已经过期，导出 HTML 就只剩标题没有正文和图片。改成 2 小时。
+     */
+    const val TTL_MILLIS = 2 * 60 * 60 * 1000L
 
     private const val MAX_THREADS = 50
     private const val MAX_FLOORS_PER_PAGE = 80

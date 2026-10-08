@@ -4,16 +4,21 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.IconButton
 import androidx.compose.material.Text
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.runtime.Composable
@@ -26,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -106,7 +112,7 @@ fun HotThreadListPage(
         ) {
             val pullRefreshState = rememberPullRefreshState(
                 refreshing = isRefreshing,
-                onRefresh = { viewModel.send(HotThreadUiIntent.Refresh(forumName)) }
+                onRefresh = { viewModel.send(HotThreadUiIntent.Refresh(forumName, force = true)) }
             )
             val lazyListState = rememberLazyListState()
             Box(modifier = Modifier.pullRefresh(pullRefreshState)) {
@@ -119,6 +125,43 @@ fun HotThreadListPage(
                     lazyListState = lazyListState
                 ) {
                     MyLazyColumn(state = lazyListState) {
+                        item(key = "HotHeader") {
+                            // 手动刷新入口：现在列表不会自动重载了，总得有个地方能刷
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 4.dp),
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.tab_forum_hot),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = ExtendedTheme.colors.textSecondary,
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "· ${data.size}",
+                                    fontSize = 12.sp,
+                                    color = ExtendedTheme.colors.textSecondary,
+                                )
+                                Spacer(modifier = Modifier.weight(1f))
+                                IconButton(
+                                    onClick = {
+                                        viewModel.send(
+                                            HotThreadUiIntent.Refresh(forumName, force = true)
+                                        )
+                                    },
+                                    enabled = !isRefreshing,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Refresh,
+                                        contentDescription = "刷新",
+                                        tint = ExtendedTheme.colors.textSecondary,
+                                    )
+                                }
+                            }
+                        }
                         items(items = data, key = { it.tid }) { thread ->
                             HotThreadCard(
                                 thread = thread,
@@ -223,6 +266,7 @@ private fun HotThreadCard(
                         authorName = thread.authorName,
                         abstractText = thread.abstractText,
                         url = thread.url,
+                        coverUrl = thread.pics.firstOrNull(),
                     )
                 )
             }

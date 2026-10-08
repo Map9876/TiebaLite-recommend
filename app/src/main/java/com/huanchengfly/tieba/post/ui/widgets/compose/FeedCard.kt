@@ -867,6 +867,13 @@ fun FeedCard(
                                 user.get { nameShow }.ifBlank { user.get { name } }
                             },
                             abstractText = item.get { abstractText },
+                            coverUrl = remember(item) {
+                                item.get { media }.firstOrNull()?.let { m ->
+                                    m.bigPicUrl?.takeIf { it.isNotBlank() }
+                                        ?: m.originPicUrl?.takeIf { it.isNotBlank() }
+                                        ?: m.smallPicUrl?.takeIf { it.isNotBlank() }
+                                }
+                            },
                         )
                     }
                 )

@@ -214,33 +214,14 @@ fun PostAgreeBtn(
     hasAgreed: Boolean,
     agreeNum: Long,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    favoriteInfo: ThreadFavoriteInfo? = null,
+    modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
-    val favoriteIds by FavoriteRepository.favoriteIds.collectAsState()
-    val target = favoriteInfo
-    val isFavorite = target != null && favoriteIds.contains(target.threadId)
-    val checked = if (target != null) isFavorite else hasAgreed
     val animatedColor by animateColorAsState(
-        targetValue = if (checked) ExtendedTheme.colors.accent else ExtendedTheme.colors.textSecondary,
+        targetValue = if (hasAgreed) ExtendedTheme.colors.accent else ExtendedTheme.colors.textSecondary,
         label = "postAgreeBtnColor"
     )
     Button(
-        onClick = {
-            val info = target
-            if (info != null) {
-                val added = FavoriteRepository.toggle(info)
-                context.toastReplace(
-                    context.getString(
-                        if (added) R.string.toast_favorite_added
-                        else R.string.toast_favorite_removed
-                    )
-                )
-            } else {
-                onClick()
-            }
-        },
+        onClick = onClick,
         shape = RoundedCornerShape(4.dp),
         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
         colors = ButtonDefaults.buttonColors(
@@ -254,12 +235,12 @@ fun PostAgreeBtn(
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Icon(
-                imageVector = if (checked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                imageVector = if (hasAgreed) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                 contentDescription = stringResource(id = R.string.title_agree),
                 tint = animatedColor,
                 modifier = Modifier.size(16.dp)
             )
-            if (agreeNum > 0 && target == null) {
+            if (agreeNum > 0) {
                 Text(
                     text = agreeNum.getShortNumString(),
                     color = animatedColor,
@@ -272,17 +253,37 @@ fun PostAgreeBtn(
 }
 
 @Composable
+/**
+ * 主楼底部固定操作栏里、三点省略号左边的那个心形按钮。
+ * 这里放的是**本地收藏**（帖子级），楼层内部的爱心仍然是原来的楼层点赞。
+ */
+@Composable
 private fun BottomBarAgreeBtn(
-    hasAgreed: Boolean,
-    agreeNum: Long,
-    onClick: () -> Unit,
+    favoriteInfo: ThreadFavoriteInfo?,
+    onAgree: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val color = if (hasAgreed) ExtendedTheme.colors.accent else ExtendedTheme.colors.textSecondary
-    val animatedColor by animateColorAsState(color, label = "agreeBtnColor")
+    val context = LocalContext.current
+    val favoriteIds by FavoriteRepository.favoriteIds.collectAsState()
+    val isFavorite = favoriteInfo != null && favoriteIds.contains(favoriteInfo.threadId)
+    val color = if (isFavorite) ExtendedTheme.colors.accent else ExtendedTheme.colors.textSecondary
+    val animatedColor by animateColorAsState(color, label = "bottomBarFavoriteColor")
 
     Button(
-        onClick = onClick,
+        onClick = {
+            val info = favoriteInfo
+            if (info != null) {
+                val added = FavoriteRepository.toggle(info)
+                context.toastReplace(
+                    context.getString(
+                        if (added) R.string.toast_favorite_added
+                        else R.string.toast_favorite_removed
+                    )
+                )
+            } else {
+                onAgree()
+            }
+        },
         shape = RoundedCornerShape(0),
         contentPadding = PaddingValues(horizontal = 4.dp),
         colors = ButtonDefaults.buttonColors(
@@ -296,18 +297,10 @@ private fun BottomBarAgreeBtn(
             verticalAlignment = Alignment.Top
         ) {
             Icon(
-                imageVector = if (hasAgreed) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                contentDescription = stringResource(id = R.string.title_agree),
+                imageVector = if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                contentDescription = stringResource(id = R.string.desc_like),
                 tint = animatedColor
             )
-            if (agreeNum > 0) {
-                Text(
-                    text = agreeNum.getShortNumString(),
-                    style = MaterialTheme.typography.caption,
-                    color = animatedColor,
-                    fontSize = 12.sp
-                )
-            }
         }
     }
 }
@@ -344,9 +337,8 @@ private fun BottomBarPlaceholder() {
         }
 
         BottomBarAgreeBtn(
-            hasAgreed = false,
-            agreeNum = 1,
-            onClick = {},
+            favoriteInfo = null,
+            onAgree = {},
             modifier = Modifier.fillMaxHeight()
         )
 
@@ -986,14 +978,6 @@ fun ThreadPage(
             postHolder = item,
             contentRenders = contentRenders,
             subPosts = subPosts,
-            favoriteInfo = remember(threadId, threadTitle, curForumName, author) {
-                ThreadFavoriteInfo(
-                    threadId = threadId,
-                    title = threadTitle,
-                    forumName = curForumName.orEmpty(),
-                    authorName = author?.get { nameShow }
-                )
-            },
             threadAuthorId = author?.get { id } ?: 0L,
             blocked = blocked,
             canDelete = { it.author_id == user.get { id } },
@@ -1196,6 +1180,11 @@ fun ThreadPage(
                 bottomBar = {
                     BottomBar(
                         user = user,
+                        coverUrl = remember(firstPost, firstPostContentRenders) {
+                            firstPostContentRenders.filterIsInstance<PicContentRender>()
+                                .firstOrNull()
+                                ?.let { it.originUrl.ifBlank { it.picUrl } }
+                        },
                         onClickReply = {
                             navigator.navigate(
                                 ReplyPageDestination(
@@ -1726,6 +1715,7 @@ private fun BottomBar(
     modifier: Modifier = Modifier,
     hasAgreed: Boolean = false,
     agreeNum: Long = 0,
+    coverUrl: String? = null,
 ) {
     Column(
         modifier = Modifier.background(ExtendedTheme.colors.threadBottomBar)
@@ -1769,9 +1759,16 @@ private fun BottomBar(
             }
 
             BottomBarAgreeBtn(
-                hasAgreed = hasAgreed,
-                agreeNum = agreeNum,
-                onClick = onAgree,
+                favoriteInfo = remember(threadId, threadTitle, curForumName, author, coverUrl) {
+                    ThreadFavoriteInfo(
+                        threadId = threadId,
+                        title = threadTitle,
+                        forumName = curForumName.orEmpty(),
+                        authorName = author?.get { nameShow },
+                        coverUrl = coverUrl
+                    )
+                },
+                onAgree = onAgree,
                 modifier = Modifier.fillMaxHeight()
             )
 
@@ -1820,7 +1817,6 @@ fun PostCard(
     onOpenSubPosts: (subPostId: Long) -> Unit = {},
     onMenuCopyClick: ((String) -> Unit)? = null,
     onMenuFavoriteClick: ((Post) -> Unit)? = null,
-    favoriteInfo: ThreadFavoriteInfo? = null,
     onMenuDeleteClick: ((Post) -> Unit)? = null,
 ) {
     val context = LocalContext.current
@@ -1959,8 +1955,7 @@ fun PostCard(
                                 PostAgreeBtn(
                                     hasAgreed = hasAgreed,
                                     agreeNum = agreeNum,
-                                    onClick = onAgree,
-                                    favoriteInfo = favoriteInfo
+                                    onClick = onAgree
                                 )
                             }
                         }

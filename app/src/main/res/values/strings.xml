@@ -523,7 +523,7 @@
     <string name="settings_home_page_show_history_forum">首页显示最近逛的吧</string>
 
     <!-- 免登录本地收藏 -->
-    <string name="title_local_favorite">我的收藏（本地）</string>
+    <string name="title_local_favorite">我的本地收藏</string>
     <string name="hint_search_favorite">搜标题 / 吧名 / 作者 / 正文</string>
     <string name="title_favorite_export">导出</string>
     <string name="title_favorite_export_more">导出…</string>
