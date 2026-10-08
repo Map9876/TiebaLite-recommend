@@ -102,7 +102,7 @@ class LocalFavoriteViewModel @Inject constructor() :
                 if (threadIds.isEmpty()) return@channelFlow
                 val ids = threadIds.toList()
                 ids.forEach { FavoriteRepository.remove(it) }
-                send(LocalFavoritePartialChange.Delete.Success(ids))
+                send(LocalFavoritePartialChange.Delete(ids))
             }
 
         private fun export(intent: LocalFavoriteUiIntent.Export): Flow<LocalFavoritePartialChange.Export> =

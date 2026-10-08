@@ -15,7 +15,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.litepal.LitePal
-import org.litepal.LitePal.findAll
 import org.litepal.extension.deleteAll
 import org.litepal.extension.find
 import org.litepal.extension.findFirst
@@ -39,7 +38,10 @@ object FavoriteRepository {
 
     fun refreshIds() {
         GlobalScope.launch(Dispatchers.IO) {
-            runCatching { LitePal.findAll<Favorite>().map { it.threadId }.toSet() }
+            runCatching {
+                LitePal.order("threadId").find<Favorite>().orEmpty()
+                    .map { it.threadId }.toSet()
+            }
                 .onSuccess { _favoriteIds.value = it }
         }
     }
