@@ -113,10 +113,11 @@ fun HotThreadListPage(
         )
         val isError by remember { derivedStateOf { error != null } }
 
-        // 榜面漂移：锚点帖不在目标页里，说明它被新帖挤到后面去了
-        val driftHint by viewModel.uiState.collectPartialAsState(
-            prop1 = HotThreadUiState::driftHint,
-            initial = 0
+        // 榜面重排：锚点帖不在目标页里了。只说「位置可能不准」，
+        // 不给漂移页数——那取决于每个吧的发帖密度，编不出来
+        val anchorMissing by viewModel.uiState.collectPartialAsState(
+            prop1 = HotThreadUiState::anchorMissing,
+            initial = false
         )
 
         // 上次翻到哪了
@@ -189,8 +190,7 @@ fun HotThreadListPage(
                                                 HotThreadUiIntent.JumpTo(
                                                     forumName = forumName,
                                                     page = seen.maxPage.coerceAtLeast(1),
-                                                    anchorTid = seen.anchorTid,
-                                                    anchorTime = seen.anchorTime
+                                                    anchorTid = seen.anchorTid
                                                 )
                                             )
                                         }
@@ -202,8 +202,7 @@ fun HotThreadListPage(
                                             HotThreadUiIntent.JumpTo(
                                                 forumName = forumName,
                                                 page = (lastSeen?.maxPage ?: 0) + 1,
-                                                anchorTid = lastSeen?.anchorTid ?: 0L,
-                                                anchorTime = lastSeen?.anchorTime ?: 0L
+                                                anchorTid = lastSeen?.anchorTid ?: 0L
                                             )
                                         )
                                     },
@@ -231,10 +230,10 @@ fun HotThreadListPage(
                                 }
                             }
                         }
-                        if (driftHint > 0) {
-                            item(key = "DriftHint") {
+                        if (anchorMissing) {
+                            item(key = "AnchorMissing") {
                                 Text(
-                                    text = "热门榜已重排，往后翻约 $driftHint 页能接上之前的进度",
+                                    text = "热门榜已重排，上次的位置可能不准了，可以往下翻对照标题找回来",
                                     fontSize = 11.sp,
                                     color = ExtendedTheme.colors.textSecondary,
                                     modifier = Modifier.padding(

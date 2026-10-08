@@ -78,33 +78,15 @@ class HotThreadListViewModel @Inject constructor() :
                 emit(SwanTiebaApi.threads(forumName, page = page, tabId = SwanTiebaApi.TAB_HOT))
             }
                 .map<List<SwanThread>, HotThreadPartialChange.JumpTo> { threads ->
-                    val hit = anchorTid != 0L && threads.any { it.tid == anchorTid }
-                    HotThreadPartialChange.JumpTo.Success(
-                        threads, page,
-                        anchorVerified = hit || anchorTid == 0L,
-                        drift = if (hit || anchorTid == 0L) 0 else driftOf(threads, anchorTime)
-                    )
+                    // 锚点帖还在不在这个页里。只回答「在/不在」——
+                    // 漂了多少页取决于每个吧的发帖密度，没有可靠算法能算，
+                    // 与其编个数字误导人，不如只说事实。
+                    val anchorPresent =
+                        anchorTid == 0L || threads.any { it.tid == anchorTid }
+                    HotThreadPartialChange.JumpTo.Success(threads, page, anchorPresent)
                 }
                 .onStart { emit(HotThreadPartialChange.JumpTo.Start(page)) }
                 .catch { emit(HotThreadPartialChange.JumpTo.Failure(it.message.orEmpty(), page)) }
-
-        /**
-         * 榜面往前漂了多少页。
-         *
-         * 锚点帖子不在目标页里，说明它被新帖挤到后面去了。拿锚点当初的
-         * 发帖时间跟这一页最新的帖子比：锚点比这一页还新，说明中间插进了
-         * 若干页新内容，得往后翻那么多页才能接上。
-         *
-         * 经验值：30 条/页 的吧约 3~5 页/天，这里取 4，只用来给用户一个
-         * 「大概漂了多久」的提示，不当作精确值。
-         */
-        private fun driftOf(threads: List<SwanThread>, anchorTime: Long): Int {
-            if (anchorTime <= 0) return 0
-            val newest = threads.maxOfOrNull { it.createTime } ?: return 0
-            val days = (anchorTime - newest).toDouble() / 86400.0
-            if (days <= 0) return 0
-            return (days * 4).toInt().coerceAtLeast(1)
-        }
 
         private fun HotThreadUiIntent.LoadMore.producePartialChange() =
             flow { emit(SwanTiebaApi.threads(forumName, page = page, tabId = SwanTiebaApi.TAB_HOT)) }
@@ -128,7 +110,6 @@ sealed interface HotThreadUiIntent : UiIntent {
         val forumName: String,
         val page: Int,
         val anchorTid: Long = 0L,
-        val anchorTime: Long = 0L,
     ) : HotThreadUiIntent
 
     data class LoadMore(val forumName: String, val page: Int) : HotThreadUiIntent
@@ -165,7 +146,7 @@ sealed interface HotThreadPartialChange : PartialChange<HotThreadUiState> {
                 data = data.distinctBy { it.tid },
                 currentPage = page,
                 hasMore = data.isNotEmpty(),
-                driftHint = drift
+                anchorMissing = !anchorPresent
             )
 
             is Failure -> oldState.copy(isRefreshing = false)
@@ -177,9 +158,7 @@ sealed interface HotThreadPartialChange : PartialChange<HotThreadUiState> {
             val data: List<SwanThread>,
             val page: Int,
             /** 锚点帖子是否还在这一页里；false 说明榜面已经重排过 */
-            val anchorVerified: Boolean = true,
-            /** 估计漂移了多少页，仅用于提示 */
-            val drift: Int = 0,
+            val anchorPresent: Boolean = true,
         ) : JumpTo()
 
         data class Failure(val error: String, val page: Int) : JumpTo()
@@ -211,8 +190,8 @@ sealed interface HotThreadPartialChange : PartialChange<HotThreadUiState> {
 
 data class HotThreadUiState(
     val isRefreshing: Boolean = false,
-    /** 上次跳页时榜面漂移了多少页（>0 表示锚点帖被挤走了），UI 据此给提示 */
-    val driftHint: Int = 0,
+    /** 上次跳页时锚点帖不在目标页里 —— 榜面已经重排，只提示不量化 */
+    val anchorMissing: Boolean = false,
     val isLoadingMore: Boolean = false,
     val data: List<SwanThread> = emptyList(),
     val currentPage: Int = 1,
