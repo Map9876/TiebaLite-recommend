@@ -210,9 +210,9 @@ private class ForumThreadListPartialChangeProducer(val type: ForumThreadListType
                     val list = response.data_.thread_list
                     ForumThreadListPartialChange.JumpToPage.Success(
                         threadList = list.map { ThreadItemData(it.wrapImmutable()) },
-                        // ThreadListResponse 没有 thread_id_list 字段，
-                        // 游标就用这一页的 tid，跟 LoadMore 的语义保持一致
-                        threadListIds = list.map { it.tid },
+                        // ThreadListResponse 没有 thread_id_list 字段（只有 thread_list），
+                        // 游标改用这一页每个帖子的 id，和 distinctById 用的是同一个字段
+                        threadListIds = list.map { it.id },
                         currentPage = targetPage,
                         hasMore = list.isNotEmpty()
                     )
