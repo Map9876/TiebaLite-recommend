@@ -249,6 +249,33 @@ https://spwebbj.cdn.bcebos.com/web0/20260922/flFqXclepWs7RdugAszy9eERL7G5dS0I/v3
 `TiebaApi.frsPage(forumName, page, ...)` 那个登录态 pb 接口）；
 但免登录 + 顺序往后翻是可行的，配合「记住上次位置」体验就够用了。
 
+### 为什么「最新/精华」没有页码跳转
+
+试过，撤掉了。原因值得记一下：
+
+`ThreadListRequest` 里 `pn`（字段 13）和 `thread_ids`（字段 1）是两个独立字段，
+看起来 pn 能直接定位。但实测**只传 pn、不传 tid 去跳第 500 页，内容没变**——
+服务端根本不认 pn。
+
+看 `thread_id_list` 的用法就明白了：
+
+```kotlin
+val size = min(threadListIds.size, 30)
+threadList(..., threadListIds.subList(0, size).joinToString(",")) // 传这 30 个 id
+→ threadListIds = threadListIds.drop(size)                        // 剩下的留着下次取
+```
+
+每次消耗 30 个、剩下的继续保留 —— 说明 `thread_ids` 是**「我要这些 id 对应的帖子」**
+的清单，不是「从这里往后继续」的游标。所以：
+
+- pb 上**没有跳页这回事**，要拿到第 N 批必须先拥有前 N-1 批的 id 清单
+- 跨天更不行：明天拿今天缓存的 tid 去请求，返回的是**那批 id 对应的帖子本身**
+  （还在的话），不是「明天的第 31 个」
+- 唯一的办法是顺序快速翻（并发 + 短间隔），而且每天榜单变了要重翻一次
+
+小程序 `frs/page` 那个 `pn` 是真页码，但热门 tab 只到约 430 页、日期也基本不推进
+（见上一节）。所以两个接口都没法做到「输入页码直接跳」。
+
 ### 关于热门接口的已知局限
 
 - 每次刷新热门榜都会重排，而且会出现只有一两条评论的帖子，因为它按的是吧内热度而不是回复数
