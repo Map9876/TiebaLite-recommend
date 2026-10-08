@@ -18,6 +18,10 @@
 
 我们换来的东西是**吧内热门**：直接接百度贴吧小程序的免登录接口，取真正属于这个吧的热门帖，而不是全站随机。
 
+<p align="center">
+    <img src="docs/images/forum-hot-tab.jpg" alt="吧内热门 tab" width="320">
+</p>
+
 ## 新增功能
 
 | 需求 | 实现 | 位置 |
