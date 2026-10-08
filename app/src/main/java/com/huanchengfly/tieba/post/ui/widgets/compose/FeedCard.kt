@@ -867,12 +867,11 @@ fun FeedCard(
                                 user.get { nameShow }.ifBlank { user.get { name } }
                             },
                             abstractText = item.get { abstractText },
-                            coverUrl = remember(item) {
-                                item.get { media }.firstOrNull()?.let { m ->
-                                    m.bigPicUrl?.takeIf { it.isNotBlank() }
-                                        ?: m.originPicUrl?.takeIf { it.isNotBlank() }
-                                        ?: m.smallPicUrl?.takeIf { it.isNotBlank() }
-                                }
+                            // item.get{} 是 @ReadOnlyComposable，不能写在 remember 的
+                            // calculation 里，所以这里直接算，代价也只是几个判空
+                            coverUrl = item.get { media }.firstOrNull()?.let { m ->
+                                listOf(m.originPic, m.bigPic, m.srcPic)
+                                    .firstOrNull { it.isNotBlank() }
                             },
                         )
                     }
