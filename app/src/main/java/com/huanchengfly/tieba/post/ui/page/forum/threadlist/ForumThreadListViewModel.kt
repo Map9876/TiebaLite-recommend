@@ -90,6 +90,8 @@ private class ForumThreadListPartialChangeProducer(val type: ForumThreadListType
                 .flatMapConcat { it.producePartialChange() },
             intentFlow.filterIsInstance<ForumThreadListUiIntent.Agree>()
                 .flatMapConcat { it.producePartialChange() },
+            intentFlow.filterIsInstance<ForumThreadListUiIntent.JumpToPage>()
+                .flatMapConcat { it.producePartialChange() },
         )
 
     private fun ForumThreadListUiIntent.FirstLoad.producePartialChange() =
@@ -187,6 +189,38 @@ private class ForumThreadListPartialChangeProducer(val type: ForumThreadListType
             .catch { emit(ForumThreadListPartialChange.LoadMore.Failure(it)) }
     }
 
+    private fun ForumThreadListUiIntent.JumpToPage.producePartialChange():
+            Flow<ForumThreadListPartialChange.JumpToPage> =
+        if (targetPage <= 1) {
+            FrsPageRepository.frsPage(forumName, 1, 2, sortType, goodClassifyId)
+                .map<FrsPageResponse, ForumThreadListPartialChange.JumpToPage> { response ->
+                    if (response.data_?.page == null) throw TiebaUnknownException
+                    ForumThreadListPartialChange.JumpToPage.Success(
+                        threadList = response.data_.thread_list.map { ThreadItemData(it.wrapImmutable()) },
+                        threadListIds = response.data_.thread_id_list,
+                        currentPage = 1,
+                        hasMore = response.data_.page.has_more == 1
+                    )
+                }
+        } else {
+            // thread_ids 故意传空：验证服务端是否按 pn 定位
+            FrsPageRepository.threadList(forumId, forumName, targetPage, sortType, "")
+                .map { response ->
+                    if (response.data_ == null) throw TiebaUnknownException
+                    ForumThreadListPartialChange.JumpToPage.Success(
+                        threadList = response.data_.thread_list
+                            .map { ThreadItemData(it.wrapImmutable()) },
+                        // 服务端会把它当成下一批的起点，后续下拉继续用
+                        threadListIds = response.data_.thread_id_list,
+                        currentPage = targetPage,
+                        hasMore = response.data_.thread_list.isNotEmpty()
+                    )
+                }
+        }
+        return flow
+            .onStart { emit(ForumThreadListPartialChange.JumpToPage.Start) }
+            .catch { emit(ForumThreadListPartialChange.JumpToPage.Failure(targetPage, it.message.orEmpty())) }
+
     private fun ForumThreadListUiIntent.Agree.producePartialChange(): Flow<ForumThreadListPartialChange.Agree> =
         TiebaApi.getInstance().opAgreeFlow(
             threadId.toString(),
@@ -238,6 +272,22 @@ sealed interface ForumThreadListUiIntent : UiIntent {
         val threadId: Long,
         val postId: Long,
         val hasAgree: Int
+    ) : ForumThreadListUiIntent
+
+    /**
+     * 直接跳到第 [targetPage] 页。
+     *
+     * 关键点：`ThreadListRequest` 里 `pn` 和 `thread_ids` 是两个独立字段。
+     * 正常的下拉翻页靠累积传 thread_ids（游标式），但这里故意**只传 pn、
+     * 不传 tid**，看服务端认不认 pn——如果认，就能一步跳到任意页，
+     * 不用顺序翻几百次。
+     */
+    data class JumpToPage(
+        val forumId: Long,
+        val forumName: String,
+        val targetPage: Int,
+        val sortType: Int = -1,
+        val goodClassifyId: Int? = null,
     ) : ForumThreadListUiIntent
 }
 
@@ -335,6 +385,35 @@ sealed interface ForumThreadListPartialChange : PartialChange<ForumThreadListUiS
         data class Failure(
             val error: Throwable
         ) : LoadMore()
+    }
+
+    /** 跳页成功时用返回的列表替换整个当前列表 */
+    sealed class JumpToPage : ForumThreadListPartialChange {
+        override fun reduce(oldState: ForumThreadListUiState): ForumThreadListUiState =
+            when (this) {
+                Start -> oldState
+                is Success -> oldState.copy(
+                    isRefreshing = false,
+                    isLoadingMore = false,
+                    threadList = threadList.distinctById(),
+                    threadListIds = threadListIds.toImmutableList(),
+                    currentPage = currentPage,
+                    hasMore = hasMore
+                )
+
+                is Failure -> oldState.copy(isRefreshing = false, isLoadingMore = false)
+            }
+
+        data object Start : JumpToPage()
+
+        data class Success(
+            val threadList: List<ThreadItemData>,
+            val threadListIds: List<Long>,
+            val currentPage: Int,
+            val hasMore: Boolean,
+        ) : JumpToPage()
+
+        data class Failure(val page: Int, val error: String) : JumpToPage()
     }
 
     sealed class Agree private constructor() : ForumThreadListPartialChange {
