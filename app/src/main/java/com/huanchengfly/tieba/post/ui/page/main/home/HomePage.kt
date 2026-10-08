@@ -416,7 +416,8 @@ fun HomePage(
         initial = null
     )
     val isLoggedIn = remember(account) { account != null }
-    val isEmpty by remember { derivedStateOf { forums.isEmpty() } }
+    // 未登录时关注的吧列表拿不到，但本地「最近逛的吧」要照常显示
+    val isEmpty by remember { derivedStateOf { forums.isEmpty() && historyForums.isEmpty() } }
     val hasTopForum by remember { derivedStateOf { topForums.isNotEmpty() } }
     val showHistoryForum by remember { derivedStateOf { context.appPreferences.homePageShowHistoryForum && historyForums.isNotEmpty() } }
     var listSingle by remember { mutableStateOf(context.appPreferences.listSingle) }

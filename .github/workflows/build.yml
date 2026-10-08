@@ -4,6 +4,8 @@ on: [ push, pull_request ]
 
 jobs:
   build:
+    # 上游的官方发布流程依赖本仓库没有的 secrets，只在官方仓库跑
+    if: github.repository == 'HuanCheng65/TiebaLite'
     runs-on: ubuntu-latest
 
     steps:

@@ -119,6 +119,7 @@ import com.huanchengfly.tieba.post.toJson
 import com.huanchengfly.tieba.post.toastShort
 import com.huanchengfly.tieba.post.ui.common.PbContentRender
 import com.huanchengfly.tieba.post.ui.common.PbContentText
+import com.huanchengfly.tieba.post.ui.common.PicContentRender
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
 import com.huanchengfly.tieba.post.ui.common.theme.compose.invertChipBackground
 import com.huanchengfly.tieba.post.ui.common.theme.compose.invertChipContent
@@ -169,6 +170,7 @@ import com.huanchengfly.tieba.post.utils.HistoryUtil
 import com.huanchengfly.tieba.post.utils.StringUtil
 import com.huanchengfly.tieba.post.utils.StringUtil.getShortNumString
 import com.huanchengfly.tieba.post.utils.TiebaUtil
+import com.huanchengfly.tieba.post.utils.ThreadViewCache
 import com.huanchengfly.tieba.post.utils.Util.getIconColorByLevel
 import com.huanchengfly.tieba.post.utils.appPreferences
 import com.ramcosta.composedestinations.annotation.DeepLink
@@ -176,8 +178,10 @@ import com.ramcosta.composedestinations.annotation.Destination
 import com.ramcosta.composedestinations.navigation.DestinationsNavigator
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlin.concurrent.thread
 import kotlin.math.max
@@ -582,6 +586,10 @@ fun ThreadPage(
         prop1 = ThreadUiState::currentPageMax,
         initial = 0
     )
+    val currentPageMin by viewModel.uiState.collectPartialAsState(
+        prop1 = ThreadUiState::currentPageMin,
+        initial = 0
+    )
     val totalPage by viewModel.uiState.collectPartialAsState(
         prop1 = ThreadUiState::totalPage,
         initial = 0
@@ -891,6 +899,42 @@ fun ThreadPage(
 
         if (!savedHistory || lastVisibilityPostId != 0L) {
             saveHistory()
+        }
+    }
+
+    // 浏览缓冲区：把「已经加载到内存里的楼层」顺手记一份，收藏时才能带上
+    // 我看过的正文和图片。整个过程不发请求、不做 IO，写入只有一次 map 合并。
+    LaunchedEffect(threadId, currentPageMax, currentPageMin, data.size, threadTitle, curForumName) {
+        if (threadId == 0L) return@LaunchedEffect
+        val authorName = author?.get { nameShow }?.ifBlank { null }
+            ?: author?.get { name }?.ifBlank { null }
+        val floors = withContext(Dispatchers.Default) {
+            val pairs = ArrayList<Pair<ImmutableHolder<Post>, List<PbContentRender>>>(
+                data.size + 1
+            )
+            firstPost?.let { pairs.add(it to firstPostContentRenders) }
+            data.forEach { pairs.add(it.post to it.contentRenders) }
+            pairs.map { (post, renders) ->
+                val postAuthor = post.get { author }
+                ThreadViewCache.Floor(
+                    floor = post.get { floor },
+                    author = postAuthor?.get { nameShow }.orEmpty()
+                        .ifBlank { postAuthor?.get { name }.orEmpty() },
+                    text = renders.joinToString("\n") { it.toString() },
+                    images = renders.filterIsInstance<PicContentRender>()
+                        .map { it.originUrl.ifBlank { it.picUrl } },
+                )
+            }
+        }
+        withContext(Dispatchers.Default) {
+            ThreadViewCache.record(
+                threadId = threadId,
+                page = max(currentPageMax, 1),
+                title = threadTitle,
+                forumName = curForumName.orEmpty(),
+                authorName = authorName,
+                floors = floors,
+            )
         }
     }
 

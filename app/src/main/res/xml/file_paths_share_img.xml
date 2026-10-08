@@ -4,5 +4,8 @@
         <cache-path
             name="shareCache"
             path=".shareTemp" />
+        <external-files-path
+            name="favoriteExport"
+            path="tieba_favorites" />
     </paths>
 </resource>

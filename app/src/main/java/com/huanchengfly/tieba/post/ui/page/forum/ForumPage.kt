@@ -100,6 +100,7 @@ import com.huanchengfly.tieba.post.ui.page.LocalNavigator
 import com.huanchengfly.tieba.post.ui.page.ProvideNavigator
 import com.huanchengfly.tieba.post.ui.page.destinations.ForumDetailPageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.ForumSearchPostPageDestination
+import com.huanchengfly.tieba.post.ui.page.forum.hotthread.HotThreadListPage
 import com.huanchengfly.tieba.post.ui.page.forum.threadlist.ForumThreadListPage
 import com.huanchengfly.tieba.post.ui.page.forum.threadlist.ForumThreadListUiEvent
 import com.huanchengfly.tieba.post.ui.widgets.compose.Avatar
@@ -439,7 +440,7 @@ fun ForumPage(
     val tbs by viewModel.uiState.collectPartialAsState(prop1 = ForumUiState::tbs, initial = null)
 
     val account = LocalAccount.current
-    val pagerState = rememberPagerState { 2 }
+    val pagerState = rememberPagerState { 3 }
 
     val currentPage by remember {
         derivedStateOf {
@@ -862,6 +863,29 @@ fun ForumPage(
                                         )
                                     }
                                 }
+
+                                Tab(
+                                    selected = currentPage == 2,
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            pagerState.animateScrollToPage(2)
+                                        }
+                                    },
+                                    selectedContentColor = ExtendedTheme.colors.primary,
+                                    unselectedContentColor = ExtendedTheme.colors.textSecondary
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .height(48.dp)
+                                            .padding(horizontal = 16.dp)
+                                    ) {
+                                        Text(
+                                            text = stringResource(id = R.string.tab_forum_hot),
+                                            style = tabTextStyle
+                                        )
+                                    }
+                                }
                             }
 
                             if (forumInfo != null) {
@@ -872,11 +896,17 @@ fun ForumPage(
                                     verticalAlignment = Alignment.Top,
                                     userScrollEnabled = true,
                                 ) {
-                                    ForumThreadListPage(
-                                        forumId = forumInfo!!.get { id },
-                                        forumName = forumInfo!!.get { name },
-                                        isGood = it == 1,
-                                    )
+                                    when (it) {
+                                        2 -> HotThreadListPage(
+                                            forumName = forumInfo!!.get { name }
+                                        )
+
+                                        else -> ForumThreadListPage(
+                                            forumId = forumInfo!!.get { id },
+                                            forumName = forumInfo!!.get { name },
+                                            isGood = it == 1,
+                                        )
+                                    }
                                 }
                             }
                         }

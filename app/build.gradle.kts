@@ -50,6 +50,21 @@ android {
         }
         manifestPlaceholders["is_self_build"] = "$isSelfBuild"
     }
+    // official = 原包名；coexist = 加 .coexist 后缀，可与正式版同时安装。
+    // namespace 不动：它决定 BuildConfig / R 的包路径，源码 import 依赖它。
+    flavorDimensions += "distribution"
+    productFlavors {
+        create("official") {
+            dimension = "distribution"
+            resValue("string", "app_name", "贴吧 Lite")
+        }
+        create("coexist") {
+            dimension = "distribution"
+            applicationIdSuffix = ".coexist"
+            versionNameSuffix = "-coexist"
+            resValue("string", "app_name", "贴吧 Lite 共存")
+        }
+    }
     buildFeatures {
         compose = true
     }
@@ -118,8 +133,11 @@ android {
     applicationVariants.configureEach {
         val variant = this
         outputs.configureEach {
+            val flavor =
+                if (variant.productFlavors.isEmpty()) ""
+                else variant.productFlavors.joinToString("-") { it.name } + "-"
             val fileName =
-                "${variant.buildType.name}-${applicationVersionName}(${applicationVersionCode}).apk"
+                "${variant.buildType.name}-$flavor${applicationVersionName}(${applicationVersionCode}).apk"
 
             (this as BaseVariantOutputImpl).outputFileName = fileName
         }

@@ -40,6 +40,7 @@ import androidx.compose.material.icons.rounded.SwapCalls
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.movableContentOf
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -81,6 +82,8 @@ import com.huanchengfly.tieba.post.arch.ImmutableHolder
 import com.huanchengfly.tieba.post.arch.wrapImmutable
 import com.huanchengfly.tieba.post.findActivity
 import com.huanchengfly.tieba.post.goToActivity
+import com.huanchengfly.tieba.post.models.ThreadFavoriteInfo
+import com.huanchengfly.tieba.post.repository.FavoriteRepository
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
 import com.huanchengfly.tieba.post.ui.common.windowsizeclass.WindowWidthSizeClass
 import com.huanchengfly.tieba.post.ui.page.photoview.PhotoViewActivity
@@ -94,6 +97,7 @@ import com.huanchengfly.tieba.post.utils.EmoticonUtil.emoticonString
 import com.huanchengfly.tieba.post.utils.ImageUtil
 import com.huanchengfly.tieba.post.utils.StringUtil
 import com.huanchengfly.tieba.post.utils.StringUtil.getShortNumString
+import com.huanchengfly.tieba.post.utils.AccountUtil.LocalAccount
 import com.huanchengfly.tieba.post.utils.appPreferences
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
@@ -647,7 +651,7 @@ private fun ThreadForumInfo(
 }
 
 @Composable
-private fun ThreadForumInfo(
+fun ThreadForumInfo(
     forumName: String,
     forumAvatar: String?,
     onClick: () -> Unit,
@@ -688,21 +692,36 @@ fun ThreadReplyBtn(
     )
 }
 
+/**
+ * 帖子卡片右下角的爱心。
+ *
+ * 已登录：维持原来的点赞行为。
+ * 未登录：点赞接口用不了，这里把同一个爱心就地改成「本地收藏」——图标不变，
+ * 只是实心表示已收藏。未登录时仍显示赞数，不影响阅读。
+ */
 @Composable
 fun ThreadAgreeBtn(
     hasAgree: Boolean,
     agreeNum: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    favoriteInfo: ThreadFavoriteInfo? = null,
+    onFavorite: ((Boolean) -> Unit)? = null,
 ) {
+    val account = LocalAccount.current
+    val favoriteIds by FavoriteRepository.favoriteIds.collectAsState()
+    val target = favoriteInfo.takeIf { account == null }
+    val isFavorite = target != null && favoriteIds.contains(target.threadId)
+    val checked = if (target != null) isFavorite else hasAgree
+
     val contentColor =
-        if (hasAgree) ExtendedTheme.colors.primary else ExtendedTheme.colors.textSecondary
+        if (checked) ExtendedTheme.colors.primary else ExtendedTheme.colors.textSecondary
     val animatedColor by animateColorAsState(contentColor, label = "agreeBtnContentColor")
 
     ActionBtn(
         icon = {
             Icon(
-                imageVector = if (hasAgree) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                imageVector = if (checked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                 contentDescription = stringResource(id = R.string.desc_like),
             )
         },
@@ -715,7 +734,13 @@ fun ThreadAgreeBtn(
         },
         modifier = modifier,
         color = animatedColor,
-        onClick = onClick
+        onClick = {
+            if (target != null) {
+                onFavorite?.invoke(FavoriteRepository.toggle(target))
+            } else {
+                onClick()
+            }
+        }
     )
 }
 
@@ -818,7 +843,18 @@ fun FeedCard(
                     hasAgree = item.get { agree?.hasAgree == 1 },
                     agreeNum = item.get { agreeNum },
                     onClick = { onAgree(item.get()) },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    favoriteInfo = remember(item) {
+                        ThreadFavoriteInfo(
+                            threadId = item.get { id },
+                            title = item.get { title },
+                            forumName = item.getNullableImmutable { forumInfo }?.get { name }.orEmpty(),
+                            authorName = item.getNullableImmutable { author }?.let { user ->
+                                user.get { nameShow }.ifBlank { user.get { name } }
+                            },
+                            abstractText = item.get { abstractText },
+                        )
+                    }
                 )
             }
         },
@@ -904,7 +940,16 @@ fun FeedCard(
                     hasAgree = item.get { agree?.hasAgree == 1 },
                     agreeNum = item.get { agree_num },
                     onClick = { onAgree(item.get()) },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    favoriteInfo = remember(item) {
+                        ThreadFavoriteInfo(
+                            threadId = item.get { thread_id },
+                            title = item.get { title },
+                            forumName = item.get { forum_name },
+                            authorName = item.get { name_show }.ifBlank { item.get { user_name } },
+                            abstractText = item.get { abstractText },
+                        )
+                    }
                 )
             }
         },

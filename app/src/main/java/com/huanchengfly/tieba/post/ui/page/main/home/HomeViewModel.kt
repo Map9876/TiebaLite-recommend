@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import com.huanchengfly.tieba.post.api.TiebaApi
 import com.huanchengfly.tieba.post.api.models.CommonResponse
+import com.huanchengfly.tieba.post.api.models.protos.forumRecommend.ForumRecommendResponse
 import com.huanchengfly.tieba.post.api.retrofit.exception.getErrorMessage
 import com.huanchengfly.tieba.post.arch.BaseViewModel
 import com.huanchengfly.tieba.post.arch.CommonUiEvent
@@ -72,7 +73,10 @@ class HomeViewModel : BaseViewModel<HomeUiIntent, HomePartialChange, HomeUiState
         private fun produceRefreshPartialChangeFlow(): Flow<HomePartialChange.Refresh> =
             HistoryUtil.getFlow(HistoryUtil.TYPE_FORUM, 0)
                 .zip(
+                    // 未登录 / 推荐接口挂掉时不能让整个首页报错，
+                    // 否则「最近逛的吧」这块本地数据也一起看不到了。
                     TiebaApi.getInstance().forumRecommendNewFlow()
+                        .catch { emit(ForumRecommendResponse()) }
                 ) { historyForums, forumRecommend ->
                     val forums = forumRecommend.data_?.like_forum?.map {
                         HomeUiState.Forum(

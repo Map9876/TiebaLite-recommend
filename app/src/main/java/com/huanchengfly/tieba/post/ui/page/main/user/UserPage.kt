@@ -54,6 +54,7 @@ import com.huanchengfly.tieba.post.ui.page.LocalNavigator
 import com.huanchengfly.tieba.post.ui.page.destinations.AboutPageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.AppThemePageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.HistoryPageDestination
+import com.huanchengfly.tieba.post.ui.page.destinations.LocalFavoritePageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.SettingsPageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.ThreadStorePageDestination
 import com.huanchengfly.tieba.post.ui.page.destinations.UserProfilePageDestination
@@ -323,15 +324,18 @@ fun UserPage(
                             .padding(top = 8.dp),
                     )
                 }
-                if (account != null) {
-                    ListMenuItem(
-                        icon = ImageVector.vectorResource(id = R.drawable.ic_favorite),
-                        text = stringResource(id = R.string.title_my_collect),
-                        onClick = {
+                // 未登录时进本地收藏（免登录收藏），已登录保持原来的服务端收藏夹
+                ListMenuItem(
+                    icon = ImageVector.vectorResource(id = R.drawable.ic_favorite),
+                    text = stringResource(id = R.string.title_my_collect),
+                    onClick = {
+                        if (account != null) {
                             navigator.navigate(ThreadStorePageDestination)
+                        } else {
+                            navigator.navigate(LocalFavoritePageDestination)
                         }
-                    )
-                }
+                    }
+                )
                 ListMenuItem(
                     icon = ImageVector.vectorResource(id = R.drawable.ic_outline_watch_later_24),
                     text = stringResource(id = R.string.title_history),
