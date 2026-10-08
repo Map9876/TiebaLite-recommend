@@ -47,12 +47,81 @@
 - 小程序入口：[byokpg.smartapps.baidu.com/pages/frs/frs?kw=方便面](https://byokpg.smartapps.baidu.com/pages/frs/frs?aladdin_src_id=61952&kw=%E6%96%B9%E4%BE%BF%E9%9D%A2&_swebfr=26&_swebFromHost=bdhonorbrowser)
 - 实际请求：`GET https://tiebaswan.baidu.com/c/f/frs/page?kw=<吧名>&tab_id=2&...`，鉴权只有一个 `sign`（参数按key 字典序拼串+ 固定 SECRET 做 MD5），不需要 BDUSS
 
+### 发帖时间是从哪个接口来的？
+
+**和热门是同一个接口，一次请求，不用额外调。** 就是
+`GET https://tiebaswan.baidu.com/c/f/frs/page?kw=<吧名>&tab_id=2&...`，
+时间戳就在 `page_data.feed_list[].feed.components[]` 里 `component == "feed_head"`
+的那个对象的 `extra_data` 数组中：
+
+```json
+{
+  "component": "feed_head",
+  "feed_head": {
+    "image_data": { "img_url": "http://tb.himg.baidu.com/...", "...": "..." },
+    "main_data": [ { "type": 1, "text": { "text": "资深体育泡面迷", "type": 0 } } ],
+    "extra_data": [
+      { "type": 1, "text": { "text": "1790815105", "type": 3 } },
+      { "type": 1, "text": { "text": "戴森球计划吧吧主", "type": 0 } }
+    ]
+  }
+}
+```
+
+规则：
+
+- `extra_data` 里`text.type == 3` 的那一项，`text.text` 就是**秒级 Unix 时间戳**
+- 同一数组里还混着吧主徽章之类的纯文本（`text.type` 为 0 或其他值），必须按 `type == 3` 筛
+- **这个坑很容易踩**：字段名就叫 `text`，时间语义藏在**兄弟字段** `type` 上。
+  用「递归遍历找 key 里含 time/date/create」的写法是扫不到的，
+  最初就是这么漏掉的（连续两次断言"接口不返回发帖时间"是错的）
+
+对应实现 `SwanTiebaApi.parseCreateTime()`。
+
+### 怎么抓包 / 怎么验证接口
+
+网页入口（都会302 到小程序 frs 页）：
+
+- [贴吧移动版mbd.baidu.com/ma/s/pS8jRhi9](https://mbd.baidu.com/ma/s/pS8jRhi9)
+- [小程序吧内页 byokpg.smartapps.baidu.com/pages/frs/frs](https://byokpg.smartapps.baidu.com/pages/frs/frs?aladdin_src_id=61952&kw=%E6%96%B9%E4%BE%BF%E9%9D%A2&_swebfr=26&_swebFromHost=bdhonorbrowser)
+
+小程序页面把业务请求统一包在 `https://byokpg.smartapps.baidu.com/webmapp/api/v1/proxy?u=<编码后的目标>` 里，
+`u` 是混淆过的，从 URL 看不出真实端点，而且 headless 浏览器会触发百度验证码导致帖子列表不渲染。
+**所以别从页面拦包，直接请求真实接口更快**：
+
+```bash
+# 签名：参数按 key 字典序拼成 "k1=v1k2=v2"（无分隔符），末尾加 SECRET，MD5 32 位小写
+SECRET=0039d79dc3cc2075129745a30237a3c4
+python3 - <<'PY'
+import hashlib, time, urllib.parse, urllib.request, json
+SECRET = "0039d79dc3cc2075129745a30237a3c4"
+CUID = "A63C81D31E855BD294D9E3F56305E925|VXU2U2B2I"
+p = {"subapp_type": "smallapp", "tab_id": "2", "tab_type": "all", "fr": "smallapp",
+     "kw": "方便面", "pn": "1", "rn": "20", "r": "2", "is_newfrs": "1", "is_newfeed": "1",
+     "timestamp": str(int(time.time() * 1000)), "source_platform": "baidu",
+     "obj_param2": "flyflow", "browser": "flyflow", "_client_type": "2",
+     "_client_version": "12.77.0", "call_from": "baidu", "cuid": CUID, "swan_cuid": CUID}
+p["sign"] = hashlib.md5(("".join(f"{k}={p[k]}" for k in sorted(p)) + SECRET).encode()).hexdigest()
+req = urllib.request.Request(
+    "https://tiebaswan.baidu.com/c/f/frs/page?" + urllib.parse.urlencode(p),
+    headers={"User-Agent": "Mozilla/5.0"})
+print(json.load(urllib.request.urlopen(req, timeout=25))["error_code"])   # 0 即成功
+PY
+```
+
+`tab_id` 取值：`0` 看贴（全部）、`1` 看贴、`2` 热门、`3` 成员、`4` 群组。
+
+需要看页面自己怎么渲染某个字段时，再去扒小程序包里的页面脚本，比拦包靠谱：
+
+```
+https://spwebbj.cdn.bcebos.com/web0/20260922/flFqXclepWs7RdugAszy9eERL7G5dS0I/v33731_1790040654//pages/uni-frs/uni-frs.swan.js
+```
+
+（版本号会变，从页面资源列表里拿。「回复于」这个词就在这个文件里，
+顺着模板变量就能追到 `feed_head.extra_data`。）
+
 ### 关于热门接口的已知局限
 
-- 发帖时间**能拿到，但藏得很深**：在 `feed_head.extra_data` 里，形如
-  `[{"type":1,"text":{"text":"1790815105","type":3}}]`。字段名就叫 `text`，
-  时间语义藏在兄弟字段 `text.type == 3` 上，按「key 含 time/date」去扫是扫不到的。
-  同一段里还混着吧主徽章之类的纯文本（`text.type` 不为 3），要按 type 筛
 - 每次刷新热门榜都会重排，而且会出现只有一两条评论的帖子，因为它按的是吧内热度而不是回复数
 - 想要「按时间或回复数排序的精华」，还是得用需要登录的 pb 接口
 

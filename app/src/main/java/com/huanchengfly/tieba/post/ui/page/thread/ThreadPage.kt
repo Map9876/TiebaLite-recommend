@@ -1820,8 +1820,8 @@ fun PostCard(
     onOpenSubPosts: (subPostId: Long) -> Unit = {},
     onMenuCopyClick: ((String) -> Unit)? = null,
     onMenuFavoriteClick: ((Post) -> Unit)? = null,
-    onMenuDeleteClick: ((Post) -> Unit)? = null,
     favoriteInfo: ThreadFavoriteInfo? = null,
+    onMenuDeleteClick: ((Post) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val navigator = LocalNavigator.current
