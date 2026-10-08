@@ -936,7 +936,7 @@ fun ThreadPage(
                         .ifBlank { postAuthor?.get { name }.orEmpty() },
                     text = renders.joinToString("\n") { it.toString() },
                     images = renders.filterIsInstance<PicContentRender>()
-                        .map { it.originUrl.ifBlank { it.picUrl } },
+                        .map { FavoriteHtmlExporter.stripQuery(it.originUrl.ifBlank { it.picUrl }) },
                 )
             }
         }
@@ -1195,7 +1195,11 @@ fun ThreadPage(
                                 coverUrl = firstPostContentRenders
                                     .filterIsInstance<PicContentRender>()
                                     .firstOrNull()
-                                    ?.let { it.originUrl.ifBlank { it.picUrl } }
+                                    ?.let {
+                                        FavoriteHtmlExporter.stripQuery(
+                                            it.originUrl.ifBlank { it.picUrl }
+                                        )
+                                    }
                             )
                         },
                         onClickReply = {

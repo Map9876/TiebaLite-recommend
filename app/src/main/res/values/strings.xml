@@ -45,7 +45,7 @@
     <string name="title_jump_page">跳页</string>
     <string name="tip_jump_page">当前 %1$d/%2$d 页</string>
     <string name="title_default">贴吧 Lite</string>
-    <string name="title_my_collect">我的收藏</string>
+    <string name="title_my_collect">我的本地收藏</string>
     <string name="title_at_me">提到我的</string>
     <string name="text_message_list_item_reply_my_thread">回复我的主题：%1$s</string>
     <string name="title_reply_me">回复我的</string>
@@ -532,7 +532,7 @@
     <string name="title_favorite_export_backup">导出备份文件（可再导入）</string>
     <string name="title_favorite_import">导入收藏</string>
     <string name="title_favorite_select_all">全选</string>
-    <string name="title_favorite_clear_select">取消选择</string>
+    <string name="title_favorite_clear_select">取消全选</string>
     <string name="favorite_selected_count">已选 %1$d 项</string>
     <string name="favorite_local_only_tip">收藏保存在本机，不上传</string>
     <string name="toast_favorite_imported">成功导入 %1$d 条收藏</string>
@@ -544,7 +544,7 @@
     <string name="title_favorite_toggle_select">选择 / 取消选择</string>
     <string name="title_favorite_local_tip">未登录时，帖子右下角的爱心就是收藏</string>
 
-    <string name="toast_favorite_added">已收藏，可在「我 → 我的收藏」查看</string>
+    <string name="toast_favorite_added">已收藏，可在「我 → 我的本地收藏」查看</string>
     <string name="toast_favorite_removed">已取消收藏</string>
     <string name="toast_favorite_unsupported">这个界面暂时不支持收藏</string>
 

@@ -85,17 +85,61 @@ object FavoriteHtmlExporter {
                         sb.append("<div class=\"abs\">").append(esc(favorite.abstractText))
                             .append("</div>\n")
                     }
-                    if (dataUri.isNotEmpty()) {
-                        sb.append("<div class=\"pics\">\n")
-                        dataUri.forEach {
-                            sb.append("<img loading=\"lazy\" src=\"").append(it).append("\">\n")
+                    // 有结构化楼层就按楼层卡片渲染（作者/图片各归各位，不再重复）
+                    val floors = ThreadViewCache.parseFloorsJson(favorite.floorsJson)
+                    if (floors.isNotEmpty()) {
+                        // dataUri 是按楼层顺序抓下来的图片，用游标逐个归位给对应楼层
+                        sb.append("<div class=\"floors\">\n")
+                        var lastPage = -1
+                        var cursor = 0
+                        floors.forEach { floor ->
+                            if (floor.page != lastPage) {
+                                lastPage = floor.page
+                                sb.append("<div class=\"page-sep\">第 ").append(floor.page)
+                                    .append(" 页</div>\n")
+                            }
+                            if (floor.text.isBlank() && floor.images.isEmpty()) return@forEach
+                            sb.append("<div class=\"floor\">\n")
+                            sb.append("<div class=\"floor-head\">")
+                            sb.append("<span class=\"floor-no\">#").append(floor.floor).append("</span>")
+                            sb.append("<span class=\"floor-author\">")
+                                .append(esc(floor.author?.takeIf { it.isNotBlank() } ?: "匿名"))
+                                .append("</span>")
+                            sb.append("</div>\n")
+                            if (floor.text.isNotBlank()) {
+                                sb.append("<div class=\"floor-text\">")
+                                    .append(esc(floor.text).replace("\n", "<br>"))
+                                    .append("</div>\n")
+                            }
+                            // 这一层自己的图片
+                            if (floor.images.isNotEmpty()) {
+                                sb.append("<div class=\"pics\">\n")
+                                floor.images.forEach { _ ->
+                                    if (cursor < dataUri.size) {
+                                        sb.append("<img loading=\"lazy\" src=\"")
+                                            .append(dataUri[cursor++]).append("\">\n")
+                                    }
+                                }
+                                sb.append("</div>\n")
+                            }
+                            sb.append("</div>\n")
                         }
                         sb.append("</div>\n")
-                    }
-                    if (!favorite.content.isNullOrBlank()) {
-                        sb.append("<pre class=\"content\">")
-                            .append(esc(favorite.content!!))
-                            .append("</pre>\n")
+                    } else {
+                        // 没有结构化楼层（比如在列表里收藏、还没看过帖子）
+                        // 就退回封面 + 摘要
+                        if (dataUri.isNotEmpty()) {
+                            sb.append("<div class=\"pics\">\n")
+                            dataUri.forEach {
+                                sb.append("<img loading=\"lazy\" src=\"").append(it).append("\">\n")
+                            }
+                            sb.append("</div>\n")
+                        }
+                        if (!favorite.content.isNullOrBlank()) {
+                            sb.append("<pre class=\"content\">")
+                                .append(esc(favorite.content!!))
+                                .append("</pre>\n")
+                        }
                     }
                     sb.append("<a class=\"src\" href=\"").append(esc(favorite.url))
                         .append("\">在贴吧打开 →</a>\n")
@@ -136,8 +180,19 @@ object FavoriteHtmlExporter {
     private fun imageCount(favorite: Favorite): Int =
         favorite.imageUrls?.lineSequence()?.filter { it.isNotBlank() }?.count() ?: 0
 
+    /**
+     * 去掉图片地址上的查询串。
+     *
+     * 贴吧图片 URL 常带 `?tbpicau=2026-10-20-xxxx` 这类带时效的鉴权参数，
+     * 存下来过一阵就失效了。去掉参数后剩下的
+     * `https://tiebapic.baidu.com/forum/pic/item/<hash>.jpg` 是长期可用的。
+     */
+    fun stripQuery(url: String): String =
+        url.substringBefore('?').ifBlank { url }
+
     private fun fetchAsDataUri(url: String): String? = runCatching {
-        val request = Request.Builder().url(url).header("User-Agent", "Mozilla/5.0").build()
+        val request = Request.Builder().url(stripQuery(url))
+            .header("User-Agent", "Mozilla/5.0").build()
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) return null
             val body = response.body ?: return null
@@ -205,7 +260,23 @@ main{flex:1;padding:22px 26px 60px;min-width:0}
 pre.content{white-space:pre-wrap;word-break:break-word;background:#faf8f4;border:1px solid #eee7d9;border-radius:8px;padding:12px;font:13px/1.7 ui-monospace,Menlo,Consolas,monospace;color:#3a3a3a;margin:12px 0 0}
 .src{display:inline-block;margin-top:12px;font-size:13px;color:#2f6fbf}
 .empty{color:#8a8378;font-size:13px;padding:8px}
-@media (max-width:820px){.wrap{flex-direction:column}aside{position:static;width:auto;max-height:none;border-right:0;border-bottom:1px solid #e3ddd2}}
+
+/* 楼层：用电脑版那种紧凑卡片，不再往正文里塞 "——第1页——" "#1 xxx" 这类文本 */
+.floors{margin-top:12px;border-top:1px solid #eee7d9;padding-top:8px}
+.page-sep{margin:10px 0 6px;font-size:12px;color:#a09a8e;letter-spacing:.5px}
+.floor{display:grid;grid-template-columns:170px 1fr;gap:0 14px;padding:8px 0;border-bottom:1px dashed #f0ece2}
+.floor-head{min-width:0}
+.floor-no{display:inline-block;min-width:38px;font-size:12px;color:#a09a8e}
+.floor-author{font-size:13px;color:#2f6fbf;font-weight:600;word-break:break-all}
+.floor-text{font-size:14px;line-height:1.72;white-space:pre-wrap;word-break:break-word}
+.floor .pics{margin:6px 0 0;grid-column:2}
+.floor .pics img{max-width:240px;margin:0 6px 6px 0}
+@media (max-width:820px){
+  .wrap{flex-direction:column}
+  aside{position:static;width:auto;max-height:none;border-right:0;border-bottom:1px solid #e3ddd2}
+  .floor{grid-template-columns:1fr}
+  .floor .pics{grid-column:1}
+}
 </style></head><body>
 <div class="wrap">
 <aside>

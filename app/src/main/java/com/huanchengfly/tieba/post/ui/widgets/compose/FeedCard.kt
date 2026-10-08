@@ -872,6 +872,7 @@ fun FeedCard(
                             coverUrl = item.get { media }.firstOrNull()?.let { m ->
                                 listOf(m.originPic, m.bigPic, m.srcPic)
                                     .firstOrNull { it.isNotBlank() }
+                                    ?.let { FavoriteHtmlExporter.stripQuery(it) }
                             },
                         )
                     }

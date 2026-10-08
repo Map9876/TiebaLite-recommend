@@ -315,6 +315,12 @@ fun SearchThreadItem(
                                 forumName = item.forumName,
                                 authorName = item.user.showNickname ?: item.user.userName,
                                 abstractText = item.content,
+                                coverUrl = item.media.firstOrNull()
+                                    ?.let { m ->
+                                        listOfNotNull(m.bigPic, m.src, m.smallPic, m.waterPic)
+                                            .firstOrNull { it.isNotBlank() }
+                                    }
+                                    ?.let { FavoriteHtmlExporter.stripQuery(it) },
                             )
                         }
                     }

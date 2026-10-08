@@ -36,6 +36,40 @@ object ThreadViewCache {
         val images: List<String>,
     )
 
+    /** 存进数据库的楼层结构。带 page，导出 HTML 时按页分组渲染。 */
+    @Immutable
+    @kotlinx.serialization.Serializable
+    data class CachedFloor(
+        val page: Int,
+        val floor: Int,
+        val author: String? = null,
+        val text: String = "",
+        val images: List<String> = emptyList(),
+    )
+
+    /** 把结构化楼层转成 JSON 存库，导出时再解析出来按布局渲染 */
+    fun toFloorsJson(pages: Map<Int, List<Floor>>): String = runCatching {
+        val list = pages.keys.sorted().flatMap { page ->
+            pages[page].orEmpty().map {
+                CachedFloor(page, it.floor, it.author, it.text, it.images)
+            }
+        }
+        kotlinx.serialization.json.Json.encodeToString(
+            kotlinx.serialization.builtins.ListSerializer(CachedFloor.serializer()),
+            list
+        )
+    }.getOrDefault("")
+
+    fun parseFloorsJson(json: String?): List<CachedFloor> = runCatching {
+        if (json.isNullOrBlank()) return emptyList()
+        kotlinx.serialization.json.Json {
+            ignoreUnknownKeys = true
+        }.decodeFromString(
+            kotlinx.serialization.builtins.ListSerializer(CachedFloor.serializer()),
+            json
+        )
+    }.getOrDefault(emptyList())
+
     @Immutable
     data class Snapshot(
         val threadId: Long,

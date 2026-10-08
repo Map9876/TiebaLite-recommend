@@ -478,7 +478,8 @@ private fun HotThreadCard(
                         authorName = thread.authorName,
                         abstractText = thread.abstractText,
                         url = thread.url,
-                        coverUrl = thread.pics.firstOrNull(),
+                        coverUrl = thread.pics.firstOrNull()
+                            ?.let { FavoriteHtmlExporter.stripQuery(it) },
                     )
                 )
             }

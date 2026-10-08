@@ -73,6 +73,9 @@ object FavoriteRepository {
                 content = cached?.text,
                 imageUrls = cached?.imageUrls?.joinToString("\n"),
                 coverUrl = info.coverUrl ?: cached?.imageUrls?.firstOrNull(),
+                floorsJson = cached?.pages
+                    ?.let { ThreadViewCache.toFloorsJson(it) }
+                    ?.takeIf { it.isNotBlank() },
                 lastPage = cached?.maxPage ?: 0,
             ).save()
         }
@@ -99,6 +102,7 @@ object FavoriteRepository {
                 content = content ?: old?.content,
                 imageUrls = imageUrls?.joinToString("\n") ?: old?.imageUrls,
                 coverUrl = info.coverUrl ?: old?.coverUrl,
+                floorsJson = floorsJson ?: old?.floorsJson,
                 lastPage = if (lastPage > 0) lastPage else old?.lastPage ?: 0,
                 timestamp = old?.timestamp ?: System.currentTimeMillis(),
             ).let { new ->
@@ -135,6 +139,8 @@ object FavoriteRepository {
                 imageUrls = snapshot.imageUrls.joinToString("\n")
                     .ifBlank { old.imageUrls },
                 coverUrl = old.coverUrl ?: snapshot.imageUrls.firstOrNull(),
+                floorsJson = ThreadViewCache.toFloorsJson(snapshot.pages)
+                    .takeIf { it.isNotBlank() } ?: old.floorsJson,
                 lastPage = maxOf(old.lastPage, snapshot.maxPage),
             ).update(old.id)
         }
@@ -190,6 +196,7 @@ object FavoriteRepository {
         val content: String? = null,
         val imageUrls: String? = null,
         val coverUrl: String? = null,
+        val floorsJson: String? = null,
         val lastPage: Int = 0,
         val timestamp: Long = 0,
     )
@@ -240,6 +247,7 @@ object FavoriteRepository {
                 content = item.content,
                 imageUrls = item.imageUrls,
                 coverUrl = item.coverUrl,
+                floorsJson = item.floorsJson,
                 lastPage = item.lastPage,
                 timestamp = item.timestamp,
             ).save()

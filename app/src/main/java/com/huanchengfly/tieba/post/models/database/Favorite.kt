@@ -20,6 +20,8 @@ data class Favorite(
     val content: String? = null,
     val imageUrls: String? = null,
     val coverUrl: String? = null,
+    /** 结构化楼层（[ThreadViewCache.CachedFloor] 的 JSON），导出 HTML 用 */
+    val floorsJson: String? = null,
     val lastPage: Int = 0,
     val timestamp: Long = System.currentTimeMillis(),
 ) : LitePalSupport() {

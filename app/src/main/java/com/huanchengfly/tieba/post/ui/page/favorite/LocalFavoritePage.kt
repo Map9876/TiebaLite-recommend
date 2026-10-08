@@ -5,8 +5,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -28,6 +30,7 @@ import androidx.compose.material.Icon
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
@@ -193,6 +196,11 @@ fun LocalFavoritePage(
         }
     }
 
+    // 有勾选时按返回键先取消勾选，不要直接退出页面
+    BackHandler(enabled = hasSelection) {
+        viewModel.send(LocalFavoriteUiIntent.ClearSelection)
+    }
+
     val confirmDelete = rememberDialogState()
     ConfirmDialog(
         dialogState = confirmDelete,
@@ -239,7 +247,22 @@ fun LocalFavoritePage(
                     }
                 },
                 navigationIcon = {
-                    BackNavigationIcon(onBackPressed = { navigator.navigateUp() })
+                    // 选中态下这个箭头是「取消勾选」，不是「返回上一页」
+                    Icon(
+                        imageVector = Icons.Rounded.Close,
+                        contentDescription = stringResource(id = R.string.title_favorite_clear_select),
+                        tint = ExtendedTheme.colors.text,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .clickable(enabled = hasSelection) {
+                                if (hasSelection) {
+                                    viewModel.send(LocalFavoriteUiIntent.ClearSelection)
+                                } else {
+                                    navigator.navigateUp()
+                                }
+                            }
+                            .padding(8.dp)
+                    )
                 },
                 actions = {
                     // 用文字按钮而不是图标：之前三个「+」/勾/垃圾桶图标用户完全认不出
@@ -357,7 +380,10 @@ fun LocalFavoritePage(
                 }
             ) {
                 val lazyListState = rememberLazyListState()
-                MyLazyColumn(state = lazyListState) {
+                MyLazyColumn(
+                    state = lazyListState,
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
                     items(items = data, key = { it.threadId }) { favorite ->
                         FavoriteItem(
                             favorite = favorite,
@@ -444,23 +470,23 @@ private fun FavoriteItem(
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
-                                .size(76.dp)
-                                .clip(RoundedCornerShape(8.dp))
+                                .size(96.dp)
+                                .clip(RoundedCornerShape(10.dp))
                         )
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
                     }
                     SelectBox(
                         selected = selected,
-                        modifier = Modifier.padding(top = 4.dp)
+                        modifier = Modifier.padding(top = 6.dp)
                     )
                     Column(
                         modifier = Modifier
                             .weight(1f)
-                            .padding(start = 10.dp)
+                            .padding(start = 12.dp)
                     ) {
                         Text(
                             text = favorite.title.ifBlank { "(无标题)" },
-                            fontSize = 15.sp,
+                            fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
                             color = ExtendedTheme.colors.text,
                         )
@@ -485,7 +511,7 @@ private fun FavoriteItem(
                             ?: favorite.content?.takeIf { it.isNotBlank() }?.replace('\n', ' ')
                         Text(
                             text = preview ?: stringResource(R.string.favorite_content_missing),
-                            fontSize = 12.sp,
+                            fontSize = 14.sp,
                             maxLines = 2,
                             color = if (preview != null) ExtendedTheme.colors.textSecondary
                             else ExtendedTheme.colors.textDisabled,
