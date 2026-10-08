@@ -190,8 +190,8 @@ private class ForumThreadListPartialChangeProducer(val type: ForumThreadListType
     }
 
     private fun ForumThreadListUiIntent.JumpToPage.producePartialChange():
-            Flow<ForumThreadListPartialChange.JumpToPage> =
-        if (targetPage <= 1) {
+            Flow<ForumThreadListPartialChange.JumpToPage> {
+        val flow = if (targetPage <= 1) {
             FrsPageRepository.frsPage(forumName, 1, 2, sortType, goodClassifyId)
                 .map<FrsPageResponse, ForumThreadListPartialChange.JumpToPage> { response ->
                     if (response.data_?.page == null) throw TiebaUnknownException
