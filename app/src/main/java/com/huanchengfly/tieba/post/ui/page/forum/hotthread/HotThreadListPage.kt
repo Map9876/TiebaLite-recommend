@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.items
@@ -23,6 +24,7 @@ import androidx.compose.material.icons.rounded.DateRange
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.IconButton
+import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.material.Text
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.runtime.Composable
@@ -226,13 +228,14 @@ fun HotThreadListPage(
                     lazyListState = lazyListState
                 ) {
                     MyLazyColumn(state = lazyListState) {
-                        item(key = "HotHeader") {
-                            // 手动刷新入口：现在列表不会自动重载了，总得有个地方能刷
+                        stickyHeader(key = "HotHeader") {
+                            // 手动刷新入口：放在 sticky 里，上划不会被划走
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 4.dp),
+                                    .background(ExtendedTheme.colors.background)
+                                    .padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 6.dp),
                             ) {
                                 Text(
                                     text = stringResource(R.string.tab_forum_hot),
@@ -292,19 +295,27 @@ fun HotThreadListPage(
                                         tint = ExtendedTheme.colors.textSecondary,
                                     )
                                 }
-                                IconButton(
-                                    onClick = {
-                                        viewModel.send(
-                                            HotThreadUiIntent.Refresh(forumName, force = true)
-                                        )
-                                    },
-                                    enabled = !isRefreshing,
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Refresh,
-                                        contentDescription = "刷新",
-                                        tint = ExtendedTheme.colors.textSecondary,
+                                if (isRefreshing) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .padding(4.dp),
+                                        strokeWidth = 2.dp
                                     )
+                                } else {
+                                    IconButton(
+                                        onClick = {
+                                            viewModel.send(
+                                                HotThreadUiIntent.Refresh(forumName, force = true)
+                                            )
+                                        }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Refresh,
+                                            contentDescription = "刷新",
+                                            tint = ExtendedTheme.colors.textSecondary,
+                                        )
+                                    }
                                 }
                             }
                         }

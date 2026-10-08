@@ -142,7 +142,7 @@ class LocalFavoriteViewModel @Inject constructor() :
 
         private fun import(raw: String): Flow<LocalFavoritePartialChange.Import> = channelFlow {
             send(LocalFavoritePartialChange.Import.Start)
-            val added = runCatching { FavoriteRepository.importPayload(raw) }
+            val added = runCatching { FavoriteRepository.importAny(raw) }
                 .getOrElse {
                     send(LocalFavoritePartialChange.Import.Failure("导入失败：不是本应用导出的收藏文件"))
                     return@channelFlow

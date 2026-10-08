@@ -65,6 +65,7 @@ import com.huanchengfly.tieba.post.arch.collectPartialAsState
 import com.huanchengfly.tieba.post.arch.onEvent
 import com.huanchengfly.tieba.post.arch.pageViewModel
 import com.huanchengfly.tieba.post.models.database.Favorite
+import com.huanchengfly.tieba.post.repository.FavoriteRepository
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
 import com.huanchengfly.tieba.post.ui.page.destinations.ThreadPageDestination
 import com.huanchengfly.tieba.post.ui.widgets.compose.ActionItem
@@ -109,6 +110,14 @@ fun LocalFavoritePage(
 ) {
     LaunchedEffect(Unit) {
         viewModel.send(LocalFavoriteUiIntent.Refresh)
+    }
+
+    // 收藏/取消收藏是异步写库的，这里订阅「写完了」的通知重新查一次，
+    // 不然刚点完爱心跳进来会看不到那条
+    LaunchedEffect(Unit) {
+        FavoriteRepository.changes.collect {
+            viewModel.send(LocalFavoriteUiIntent.Refresh)
+        }
     }
 
     val context = LocalContext.current
@@ -433,6 +442,11 @@ private fun FavoriteItem(
 ) {
     val context = LocalContext.current
     val menuState = rememberMenuState()
+    // 封面先照常显示（不阻塞）；后台判断它是不是已经变成 238x238 的占位图，
+    // 是的话异步补一张一楼图片回来
+    LaunchedEffect(favorite.threadId, favorite.coverUrl) {
+        FavoriteRepository.refreshCoverIfPlaceholder(favorite)
+    }
     LongClickMenu(
         menuContent = {
             DropdownMenuItem(onClick = {
