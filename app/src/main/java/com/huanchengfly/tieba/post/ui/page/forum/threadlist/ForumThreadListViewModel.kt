@@ -93,6 +93,7 @@ private class ForumThreadListPartialChangeProducer(val type: ForumThreadListType
             intentFlow.filterIsInstance<ForumThreadListUiIntent.JumpToPage>()
                 .flatMapConcat { it.producePartialChange() },
         )
+}
 
     private fun ForumThreadListUiIntent.FirstLoad.producePartialChange() =
         FrsPageRepository.frsPage(
