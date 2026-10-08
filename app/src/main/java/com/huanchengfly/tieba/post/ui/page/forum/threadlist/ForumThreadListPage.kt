@@ -28,9 +28,6 @@ import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -67,10 +64,7 @@ import com.huanchengfly.tieba.post.ui.widgets.compose.LazyLoad
 import com.huanchengfly.tieba.post.ui.widgets.compose.LoadMoreLayout
 import com.huanchengfly.tieba.post.ui.widgets.compose.LocalSnackbarHostState
 import com.huanchengfly.tieba.post.ui.widgets.compose.MyLazyColumn
-import com.huanchengfly.tieba.post.ui.widgets.compose.PromptDialog
-import com.huanchengfly.tieba.post.ui.widgets.compose.TextButton
 import com.huanchengfly.tieba.post.ui.widgets.compose.VerticalDivider
-import com.huanchengfly.tieba.post.ui.widgets.compose.rememberDialogState
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 
@@ -309,9 +303,6 @@ fun ForumThreadListPage(
             )
         }
     }
-    val jumpDialogState = rememberDialogState()
-    var jumpResult by remember { mutableStateOf<String?>(null) }
-
     val isRefreshing by viewModel.uiState.collectPartialAsState(
         prop1 = ForumThreadListUiState::isRefreshing,
         initial = false
@@ -375,53 +366,6 @@ fun ForumThreadListPage(
                 )
             }
 
-            // 跳页：pb 的 ThreadListRequest 里 pn 和 thread_ids 是两个独立字段，
-            // 这里只传 pn、不传 tid，验证服务端能否一步定位到任意页。
-            // 如果返回的不是第 N 页，说明它只认游标，这个入口就撤掉。
-            PromptDialog(
-                dialogState = jumpDialogState,
-                onConfirm = { input ->
-                    val page = input.trim().toIntOrNull()
-                    jumpResult = if (page == null || page <= 0) {
-                        "页码填个正整数"
-                    } else {
-                        viewModel.send(
-                            ForumThreadListUiIntent.JumpToPage(
-                                forumId = forumId,
-                                forumName = forumName,
-                                targetPage = page
-                            )
-                        )
-                        "已请求第 $page 页；若内容没变，说明服务端只认 tid 游标"
-                    }
-                },
-                title = { Text(text = "跳到第几页") },
-            ) {
-                Text(
-                    text = "实验：只传 pn、不传 thread_ids",
-                    fontSize = 12.sp,
-                    color = ExtendedTheme.colors.textSecondary
-                )
-            }
-            // 顶部一个入口 + 结果提示
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 2.dp),
-            ) {
-                TextButton(onClick = { jumpDialogState.show() }) {
-                    Text(text = "跳页", fontSize = 12.sp)
-                }
-                Spacer(modifier = Modifier.weight(1f))
-                if (jumpResult != null) {
-                    Text(
-                        text = jumpResult.orEmpty(),
-                        fontSize = 11.sp,
-                        color = ExtendedTheme.colors.textSecondary
-                    )
-                }
-            }
 
             LoadMoreLayout(
                 isLoading = isLoadingMore,
