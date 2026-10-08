@@ -220,6 +220,7 @@ private class ForumThreadListPartialChangeProducer(val type: ForumThreadListType
         return flow
             .onStart { emit(ForumThreadListPartialChange.JumpToPage.Start) }
             .catch { emit(ForumThreadListPartialChange.JumpToPage.Failure(targetPage, it.message.orEmpty())) }
+    }
 
     private fun ForumThreadListUiIntent.Agree.producePartialChange(): Flow<ForumThreadListPartialChange.Agree> =
         TiebaApi.getInstance().opAgreeFlow(
@@ -289,8 +290,6 @@ sealed interface ForumThreadListUiIntent : UiIntent {
         val sortType: Int = -1,
         val goodClassifyId: Int? = null,
     ) : ForumThreadListUiIntent
-}
-
 }
 
 sealed interface ForumThreadListPartialChange : PartialChange<ForumThreadListUiState> {
