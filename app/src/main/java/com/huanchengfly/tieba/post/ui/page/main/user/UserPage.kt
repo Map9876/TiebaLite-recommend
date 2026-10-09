@@ -29,6 +29,8 @@ import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import android.content.Intent
+import android.net.Uri
+import android.provider.DocumentsContract
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -264,6 +266,19 @@ fun UserPage(
                 FavoriteExportDir.legacyPublicDir() != null
         )
     }
+    // 系统下载目录的初始 Uri，让选择器直接落在「下载」这一层。
+    // 拿不到就返回 null（launch 接受 null，会打开默认位置）。
+    fun defaultDownloadLocation(): Uri? = runCatching {
+        DocumentsContract.buildDocumentUri(
+            "com.android.externalstorage.documents",
+            "primary:Download"
+        )
+    }.getOrNull()
+
+    // 系统选择器弹着的时候置 true，用于禁用重复点击 + 显示「正在打开…」
+    var pickingDir by remember { mutableStateOf(false) }
+    // 授权过程的结果提示（成功显示路径、取消/失败给一句话），空串表示不显示
+    var dirHint by remember { mutableStateOf("") }
     val favoriteDirLocked = remember {
         // 一进来就已经能用公共目录（老系统免授权 / 之前授权过），就不再让用户管
         context.appPreferences.exportDirUri.orEmpty().isNotBlank() ||
@@ -287,10 +302,18 @@ fun UserPage(
 
     // Android 11+ 公共目录受作用域存储限制，只能让用户在系统选择器里授权一次。
     // 只需要选到「下载」这一层，App 自己会建 TiebaLite 子目录，用户不用起名字。
+    // 直接把系统选择器定位到「下载」：不少系统默认打开的是「最近」，
+    // 那里什么文件夹都没有，用户会以为坏了直接退出。
     val favoriteDirLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
     ) { treeUri ->
-        if (treeUri == null) return@rememberLauncherForActivityResult
+        pickingDir = false
+        if (treeUri == null) {
+            // 用户在选择器里直接返回了。给个提示，
+            // 否则从外面看就是「点了完全没反应」。
+            dirHint = context.getString(R.string.my_favorite_dir_canceled)
+            return@rememberLauncherForActivityResult
+        }
         val granted = runCatching {
             context.contentResolver.takePersistableUriPermission(
                 treeUri,
@@ -299,6 +322,7 @@ fun UserPage(
         }
         if (granted.isFailure) {
             Log.w("FavoriteDir", "takePersistableUriPermission 失败", granted.exceptionOrNull())
+            dirHint = context.getString(R.string.my_favorite_dir_failed)
             return@rememberLauncherForActivityResult
         }
         // 只对用户选的那个 tree 拿长期权限。
@@ -309,12 +333,17 @@ fun UserPage(
             FavoriteExportDir.resolveUserDir(context, treeUri)
         }.getOrElse {
             Log.w("FavoriteDir", "resolveUserDir 失败", it)
+            dirHint = context.getString(R.string.my_favorite_dir_failed)
             return@rememberLauncherForActivityResult
         }
         context.appPreferences.exportDirUri = sub.toString()
         favoriteDirOn = true
         // 顺带确认能真的写进去（并把当前存档挪过去），失败会打日志
         FavoriteExportDir.migrateToPublicDir(context)
+        dirHint = sub.lastPathSegment.orEmpty()
+            .replace(":", "/")
+            .replace(Regex("^document/[^/]+"), "")
+            .trim('/')
         Log.i("FavoriteDir", "已授权 -> $sub")
     }
 
@@ -435,7 +464,9 @@ fun UserPage(
                             // 把当前真实落点摊开给用户看。之前只写「已存到」，
                             // 用户没法确认到底写到哪了，也就判断不了有没有生效。
                             Text(
-                                text = FavoriteExportDir.currentPathHint(context),
+                                text = dirHint.ifBlank {
+                                    FavoriteExportDir.currentPathHint(context)
+                                },
                                 fontSize = 10.sp,
                                 color = ExtendedTheme.colors.textSecondary,
                                 maxLines = 1
@@ -443,21 +474,39 @@ fun UserPage(
                         }
                     } else {
                         Column(horizontalAlignment = Alignment.End) {
-                            Switch(
-                                checked = false,
-                                onCheckedChange = {
-                                    // Android 10 及以下能直接写公共目录，不用打扰用户
+                            // 用文字按钮而不是 Switch：Switch 的 checked 是写死的 false，
+                            // 点下去状态立刻回弹，看起来就像坏了。
+                            // 文字按钮点完立刻有反馈（变成「正在打开…」），也好认。
+                            Text(
+                                text = stringResource(
+                                    if (pickingDir) R.string.my_favorite_dir_picking
+                                    else R.string.my_favorite_dir_enable
+                                ),
+                                fontSize = 12.sp,
+                                color = ExtendedTheme.colors.primary,
+                                modifier = Modifier.clickable(enabled = !pickingDir) {
                                     if (FavoriteExportDir.legacyPublicDir() != null) {
+                                        // Android 10 及以下能直接写公共目录，不用打扰用户
                                         enableFavoriteDir(prefDirPath())
                                     } else {
-                                        favoriteDirLauncher.launch(null)
+                                        pickingDir = true
+                                        favoriteDirLauncher.launch(defaultDownloadLocation())
                                     }
-                                },
+                                }
                             )
                             Text(
                                 text = stringResource(R.string.my_favorite_dir_off),
                                 fontSize = 10.sp,
-                                color = ExtendedTheme.colors.textSecondary
+                                color = ExtendedTheme.colors.textSecondary,
+                                modifier = Modifier.clickable(enabled = !pickingDir) {
+                                    // 点下面那行小字也能打开，方便没注意到上面按钮的人
+                                    if (FavoriteExportDir.legacyPublicDir() != null) {
+                                        enableFavoriteDir(prefDirPath())
+                                    } else {
+                                        pickingDir = true
+                                        favoriteDirLauncher.launch(defaultDownloadLocation())
+                                    }
+                                }
                             )
                         }
                     }

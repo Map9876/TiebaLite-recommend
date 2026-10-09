@@ -537,6 +537,10 @@
     <string name="favorite_local_only_tip">收藏保存在本机，不上传</string>
     <string name="toast_favorite_imported">成功导入 %1$d 条收藏</string>
     <string name="my_favorite_dir_on">已存到 TiebaLite 文件夹</string>
+    <string name="my_favorite_dir_enable">开启</string>
+    <string name="my_favorite_dir_picking">正在打开…</string>
+    <string name="my_favorite_dir_canceled">没选文件夹，仍是关的</string>
+    <string name="my_favorite_dir_failed">授权失败，仍是关的</string>
     <string name="my_favorite_dir_change">换个目录</string>
     <string name="my_favorite_dir_off">关：收藏只存在 App 内部，卸载就没了</string>
     <string name="search_matched_floor">命中楼层</string>

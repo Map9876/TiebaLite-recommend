@@ -78,7 +78,11 @@ object ThreadViewCache {
      * 新数据已经按楼层号去重，这里再兜一层，是为了让旧收藏导出来也正常——
      * 不然用户得重新收藏一次才能拿到干净内容。
      */
-    fun parseFloorsJsonDeduplicated(json: String?): List<CachedFloor> {
+    fun parseFloorsJsonDeduplicated(json: String?): List<CachedFloor> = runCatching {
+        dedupOrThrow(json)
+    }.getOrDefault(emptyList())
+
+    private fun dedupOrThrow(json: String?): List<CachedFloor> {
         val raw = parseFloorsJson(json)
         if (raw.isEmpty()) return raw
         val byFloor = LinkedHashMap<Int, CachedFloor>(raw.size)

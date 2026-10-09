@@ -1,5 +1,6 @@
 package com.huanchengfly.tieba.post.utils
 
+import android.util.Log
 import com.huanchengfly.tieba.post.models.database.Favorite
 
 /** 一条楼层命中：楼里出现了搜索词 */
@@ -30,6 +31,20 @@ object FavoriteSearchHelper {
         favorite: Favorite,
         keyword: String,
         maxFloors: Int = 8,
+    ): List<FloorHit> = runCatching {
+        floorHitsOrThrow(favorite, keyword, maxFloors)
+    }.getOrElse { error ->
+        // 这段要解析用户本地存的历史数据，格式可能来自好几个 App 版本
+        // （比如加过 page 字段又删掉）。任何解析异常都只影响这次的搜索展示，
+        // 绝不能让它冒到 UI 上把页面搞崩——搜索不到总比闪退好。
+        Log.w("FavoriteSearchHelper", "解析楼层失败", error)
+        emptyList()
+    }
+
+    private fun floorHitsOrThrow(
+        favorite: Favorite,
+        keyword: String,
+        maxFloors: Int,
     ): List<FloorHit> {
         val trimmed = keyword.trim()
         if (trimmed.isEmpty()) return emptyList()
