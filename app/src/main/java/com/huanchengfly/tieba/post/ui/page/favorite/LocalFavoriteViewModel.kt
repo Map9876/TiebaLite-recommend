@@ -1,5 +1,10 @@
 package com.huanchengfly.tieba.post.ui.page.favorite
 
+import android.content.Context
+import com.huanchengfly.tieba.post.App
+import com.huanchengfly.tieba.post.R
+import com.huanchengfly.tieba.post.utils.FavoriteImporter
+
 import androidx.compose.runtime.Stable
 import com.huanchengfly.tieba.post.arch.BaseViewModel
 import com.huanchengfly.tieba.post.arch.ImmutableHolder
@@ -35,7 +40,7 @@ class LocalFavoriteViewModel @Inject constructor() :
 
     override fun createPartialChangeProducer():
             PartialChangeProducer<LocalFavoriteUiIntent, LocalFavoritePartialChange, LocalFavoriteUiState> =
-        LocalFavoritePartialChangeProducer
+        LocalFavoritePartialChangeProducer(App.INSTANCE)
 
     override fun dispatchEvent(partialChange: LocalFavoritePartialChange): UiEvent? = when (partialChange) {
         is LocalFavoritePartialChange.Export.Success ->
@@ -53,7 +58,7 @@ class LocalFavoriteViewModel @Inject constructor() :
         else -> null
     }
 
-    private object LocalFavoritePartialChangeProducer :
+    private class LocalFavoritePartialChangeProducer(private val context: Context) :
         PartialChangeProducer<LocalFavoriteUiIntent, LocalFavoritePartialChange, LocalFavoriteUiState> {
 
         private var keyword: String = ""
@@ -86,7 +91,7 @@ class LocalFavoriteViewModel @Inject constructor() :
                 intentFlow.filterIsInstance<LocalFavoriteUiIntent.Export>()
                     .flatMapConcat { export(it) },
                 intentFlow.filterIsInstance<LocalFavoriteUiIntent.Import>()
-                    .flatMapConcat { import(it.raw) },
+                    .flatMapConcat { import(it.raw, context) },
             )
 
         private fun load(keyword: String): Flow<LocalFavoritePartialChange.Refresh> =
@@ -140,11 +145,28 @@ class LocalFavoriteViewModel @Inject constructor() :
                 send(LocalFavoritePartialChange.Export.Success(intent.kind, content))
             }
 
-        private fun import(raw: String): Flow<LocalFavoritePartialChange.Import> = channelFlow {
+        private fun import(
+            raw: String,
+            context: Context,
+        ): Flow<LocalFavoritePartialChange.Import> = channelFlow {
             send(LocalFavoritePartialChange.Import.Start)
-            val added = runCatching { FavoriteRepository.importPayload(raw) }
+            // 传进来的是读不到内容时的哨兵字符，直接算失败，
+            // 别当成 txt 去解析成 0 条
+            if (raw == "\u0000") {
+                send(
+                    LocalFavoritePartialChange.Import.Failure(
+                        context.getString(R.string.toast_favorite_import_failed)
+                    )
+                )
+                return@channelFlow
+            }
+            val added = runCatching { FavoriteImporter.import(context, raw) }
                 .getOrElse {
-                    send(LocalFavoritePartialChange.Import.Failure("导入失败：不是本应用导出的收藏文件"))
+                    send(
+                        LocalFavoritePartialChange.Import.Failure(
+                            context.getString(R.string.toast_favorite_import_failed)
+                        )
+                    )
                     return@channelFlow
                 }
             send(LocalFavoritePartialChange.Import.Success(added))
