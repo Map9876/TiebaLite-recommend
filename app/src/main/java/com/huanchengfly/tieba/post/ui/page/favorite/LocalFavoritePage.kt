@@ -68,6 +68,7 @@ import com.huanchengfly.tieba.post.arch.onEvent
 import com.huanchengfly.tieba.post.arch.pageViewModel
 import com.huanchengfly.tieba.post.models.database.Favorite
 import com.huanchengfly.tieba.post.repository.FavoriteRepository
+import com.huanchengfly.tieba.post.utils.FavoriteAutoSave
 import com.huanchengfly.tieba.post.utils.FavoriteExportDir
 import com.huanchengfly.tieba.post.utils.appPreferences
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
@@ -445,6 +446,17 @@ fun LocalFavoritePage(
                     }
                 }
             }
+
+            // 授权了就说明「收藏夹实时存在这、卸载也丢不了」，没授权就提示选一个
+            Text(
+                text = if (exportDirUri.isBlank())
+                    stringResource(R.string.title_favorite_autosave_off)
+                else stringResource(R.string.title_favorite_autosave_on) +
+                    " " + (FavoriteAutoSave.savedPath(context) ?: FavoriteAutoSave.FILE_NAME),
+                fontSize = 11.sp,
+                color = ExtendedTheme.colors.textSecondary,
+                modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 6.dp),
+            )
 
             StateScreen(
                 isEmpty = data.isEmpty(),

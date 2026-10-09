@@ -1,7 +1,9 @@
 package com.huanchengfly.tieba.post.repository
 
+import com.huanchengfly.tieba.post.App
 import com.huanchengfly.tieba.post.models.ThreadFavoriteInfo
 import com.huanchengfly.tieba.post.models.database.Favorite
+import com.huanchengfly.tieba.post.utils.FavoriteAutoSave
 import com.huanchengfly.tieba.post.utils.ThreadViewCache
 import com.huanchengfly.tieba.post.utils.extension.findFlow
 import kotlinx.coroutines.Dispatchers
@@ -33,6 +35,15 @@ object FavoriteRepository {
 
     private val _favoriteIds = MutableStateFlow<Set<Long>>(emptySet())
     val favoriteIds: StateFlow<Set<Long>> = _favoriteIds
+
+    /**
+     * 写库完成后统一走这里：通知 UI 刷新，顺带把整份收藏夹存档到用户授权的文件夹
+     * （如果授权了的话）。存档失败不影响主流程。
+     */
+    private fun notifyChanged() {
+        _changes.tryEmit(Unit)
+        runCatching { FavoriteAutoSave.trigger(App.INSTANCE) }
+    }
 
     /**
      * 落库完成后的通知。
@@ -154,7 +165,7 @@ object FavoriteRepository {
                 lastPage = maxOf(old.lastPage, snapshot.maxPage),
             ).update(old.id)
             refreshIds()
-            _changes.tryEmit(Unit)
+            notifyChanged()
         }
     }
 
@@ -162,7 +173,7 @@ object FavoriteRepository {
         GlobalScope.launch(Dispatchers.IO) {
             LitePal.deleteAll<Favorite>("threadId = ?", threadId.toString())
             _favoriteIds.value = _favoriteIds.value - threadId
-            _changes.tryEmit(Unit)
+            notifyChanged()
         }
     }
 
@@ -170,7 +181,7 @@ object FavoriteRepository {
         GlobalScope.launch(Dispatchers.IO) {
             LitePal.deleteAll<Favorite>()
             _favoriteIds.value = emptySet()
-            _changes.tryEmit(Unit)
+            notifyChanged()
         }
     }
 
@@ -268,7 +279,7 @@ object FavoriteRepository {
             added++
         }
         refreshIds()
-        _changes.tryEmit(Unit)
+        notifyChanged()
         added
     }
 }
