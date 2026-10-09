@@ -475,6 +475,7 @@ fun HighlightText(
     inlineContent: Map<String, InlineTextContent> = emptyMap(),
     onTextLayout: (TextLayoutResult) -> Unit = {},
     style: TextStyle = LocalTextStyle.current,
+    clickable: Boolean = true,
     highlightKeywords: List<String> = emptyList(),
     highlightColor: Color = ExtendedTheme.colors.primary,
     highlightStyle: TextStyle = style,
@@ -529,5 +530,6 @@ fun HighlightText(
         inlineContent = inlineContent,
         onTextLayout = onTextLayout,
         style = style,
+        clickable = clickable,
     )
 }

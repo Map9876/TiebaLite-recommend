@@ -183,7 +183,10 @@ data class VideoContentRender(
         val widthFraction =
             if (LocalWindowSizeClass.current.widthSizeClass == WindowWidthSizeClass.Compact) 1f else 0.5f
         val context = LocalContext.current
-        // 同 PbContentText：navigator 只在点击封面时才用，不在顶层读
+        // 在 composable 作用域内取一次（这里合法），点击时用这个局部值。
+        // 不能在 onClick lambda 里读 LocalNavigator.current——
+        // 它是 @Composable，而 lambda 不是 composable 上下文。
+        val navigator = LocalNavigator.current
 
         if (picUrl.isNotBlank()) {
             val picModifier = Modifier
@@ -211,7 +214,7 @@ data class VideoContentRender(
                     contentDescription = stringResource(id = R.string.desc_video),
                     modifier = picModifier
                         .clickable {
-                            LocalNavigator.current.navigate(
+                            navigator.navigate(
                                 WebViewPageDestination(webUrl)
                             )
                         },
@@ -294,18 +297,31 @@ fun PbContentText(
     inlineContent: Map<String, InlineTextContent> = emptyMap(),
     onTextLayout: (TextLayoutResult) -> Unit = {},
     style: TextStyle = LocalTextStyle.current,
+    /**
+     * 关掉就不处理「点链接跳页/ 点头像进主页」。
+     *
+     * 默认开着，但那条路需要 navigator（LocalNavigator 是@Composable，
+     * 且在没被 ProvideNavigator 包裹的作用域里读会抛异常）。
+     * 于是这个组件就不能用在 LazyColumn 的 item 里——
+     * 收藏页搜索结果就是这么崩的。
+     * 纯展示文本（搜索片段之类）传 false 即可，不必提供 navigator。
+     */
+    clickable: Boolean = true,
 ) {
     val context = LocalContext.current
-    // navigator 只在用户点击链接/用户标签时才用到。之前在这个 composable
-    // 的顶层就读取，于是任何在「没有 ProvideNavigator 的作用域」里渲染这个
-    // 组件的地方（比如收藏页搜索结果，它在 LazyColumn 的 item 里）
-    // 一渲染就抛 IllegalStateException 把页面搞崩。
-    // 改成真正点击时才读。
-
+    // 只在需要点击处理时才读 navigator。不能用 `if (clickable) LocalNavigator.current`
+    // 这种写法——@Composable 调用必须出现在 if/else 的分支里，
+    // 三元表达式里编译器不允许。所以写成 if/else。
+    val navigator = if (clickable) {
+        LocalNavigator.current
+    } else {
+        null
+    }
     val layoutResult = remember { mutableStateOf<TextLayoutResult?>(null) }
     EmoticonText(
         text = text,
-        modifier = modifier.pointerInput(Unit) {
+        modifier = modifier.pointerInput(clickable) {
+            if (!clickable) return@pointerInput
             awaitEachGesture {
                 val change = awaitFirstDown()
                 val annotation =
@@ -321,13 +337,12 @@ fun PbContentText(
                         when (annotation.tag) {
                             "url" -> {
                                 val url = annotation.item
-                                launchUrl(context, LocalNavigator.current, url)
+                                navigator?.let { launchUrl(context, it, url) }
                             }
 
                             "user" -> {
                                 val uid = annotation.item.toLong()
-                                LocalNavigator.current
-                                    .navigate(UserProfilePageDestination(uid))
+                                navigator?.navigate(UserProfilePageDestination(uid))
                             }
                         }
                     }

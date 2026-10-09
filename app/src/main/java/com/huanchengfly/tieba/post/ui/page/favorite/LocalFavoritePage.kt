@@ -606,6 +606,12 @@ private fun FavoriteItem(
                                         )
                                         // 命中词用半透明底色标出来，不然用户得自己在
                                         // 一堆字里找哪几个字是搜的那几个
+                                        // clickable = false：这个组件默认会装点击手势
+                                        // （点链接跳页），而那条路需要 navigator。
+                                        // 本列表项渲染在 MyLazyColumn 的 item 里，
+                                        // 那个作用域没有 ProvideNavigator，
+                                        // 不关掉的话一渲染就抛异常闪退。
+                                        // 搜索片段是纯展示，不需要点。
                                         HighlightText(
                                             text = hit.snippet,
                                             fontSize = 15.sp,
@@ -614,6 +620,7 @@ private fun FavoriteItem(
                                             color = ExtendedTheme.colors.textSecondary,
                                             highlightKeywords = hit.matchedWords,
                                             highlightColor = ExtendedTheme.colors.primary,
+                                            clickable = false,
                                         )
                                     }
                                 }
