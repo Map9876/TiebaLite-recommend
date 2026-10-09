@@ -218,6 +218,16 @@ fun LocalFavoritePage(
         }
     }
 
+    // 「选择模式」和「当前有勾选」是两件事：
+    // 平时是浏览模式（不画勾选框、左上角是返回箭头）；用户点了顶栏的「全选」才进选择模式。
+    // 分开的好处是——在选择模式里把勾一个个全取消，勾选框不会跟着消失，
+    // 否则用户会莫名其妙地看着勾选框一个个没了。
+    var selectMode by remember { mutableStateOf(false) }
+    val exitSelectMode = {
+        selectMode = false
+        viewModel.send(LocalFavoriteUiIntent.ClearSelection)
+    }
+
     val confirmDelete = rememberDialogState()
     ConfirmDialog(
         dialogState = confirmDelete,
@@ -231,15 +241,6 @@ fun LocalFavoritePage(
 
     val selectedIds = remember(selected) { selected.toList() }
 
-    // 「选择模式」和「当前有勾选」是两件事：
-    // 平时是浏览模式（不画勾选框、左上角是返回箭头）；用户点了顶栏的「全选」才进选择模式。
-    // 分开的好处是——在选择模式里把勾一个个全取消，勾选框不会跟着消失，
-    // 否则用户会莫名其妙地看着勾选框一个个没了。
-    var selectMode by remember { mutableStateOf(false) }
-    val exitSelectMode = {
-        selectMode = false
-        viewModel.send(LocalFavoriteUiIntent.ClearSelection)
-    }
 
     // 选择模式下按返回键先退回浏览模式，不要直接退出页面
     BackHandler(enabled = selectMode) {

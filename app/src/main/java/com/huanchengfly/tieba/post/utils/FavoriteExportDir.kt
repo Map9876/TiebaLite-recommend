@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.Build
 import androidx.documentfile.provider.DocumentFile
+import android.provider.DocumentsContract
 import com.huanchengfly.tieba.post.R
 import java.io.File
 import java.text.SimpleDateFormat
@@ -45,18 +46,38 @@ object FavoriteExportDir {
      * 已存在就直接复用——这样重复授权不会套出「TiebaLite/TiebaLite」。
      */
     fun resolveUserDir(context: Context, parentTreeUri: Uri): Uri {
-        val parent = DocumentFile.fromTreeUri(context, parentTreeUri)
-        if (parent == null || !parent.canWrite()) {
-            throw IllegalStateException(
-                context.getString(R.string.toast_favorite_export_dir_failed)
+        // 先找同名目录，已存在就复用——重复授权不会套出「TiebaLite/TiebaLite」
+        val existing = findChildDir(context, parentTreeUri, PUBLIC_DIR_NAME)
+        if (existing != null) return existing
+
+        // 用 DocumentsContract 直接建，而不是 DocumentFile.createDirectory：
+        // 后者会在名字后面补一个点（变成「TiebaLite.」），在文件管理器里很难看。
+        val resolver = context.contentResolver
+        val created = runCatching {
+            DocumentsContract.createDocument(
+                resolver,
+                parentTreeUri,
+                DocumentsContract.Document.MIME_TYPE_DIR,
+                PUBLIC_DIR_NAME
             )
-        }
-        val existing = parent.findDirectory(PUBLIC_DIR_NAME)
-        val dir = existing ?: parent.createDirectory(PUBLIC_DIR_NAME)
-            ?: throw IllegalStateException(
-                context.getString(R.string.toast_favorite_export_dir_failed)
-            )
-        return dir.uri
+        }.getOrNull() ?: throw IllegalStateException(
+            context.getString(R.string.toast_favorite_export_dir_failed)
+        )
+        return created
+    }
+
+    /** 在一个 tree Uri 下按名字找子目录，找不到返回 null */
+    private fun findChildDir(
+        context: Context,
+        treeUri: Uri,
+        name: String,
+    ): Uri? {
+        val children = runCatching {
+            DocumentFile.fromTreeUri(context, treeUri)?.listFiles()
+        }.getOrNull() ?: return null
+        return children
+            ?.firstOrNull { it.isDirectory && it.name == name }
+            ?.uri
     }
 
     /**
