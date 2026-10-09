@@ -6,6 +6,7 @@ import com.huanchengfly.tieba.post.repository.FavoriteRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.litepal.LitePal
+import org.litepal.extension.findFirst
 
 /**
  * 三种导出格式都能导回来。
@@ -46,7 +47,7 @@ object FavoriteImporter {
             val threadId = m.groupValues[1].toLongOrNull() ?: 0L
             if (threadId == 0L) return@forEach
             val title = TITLE.find(m.groupValues[2])
-                ?.groupValues[1]
+                ?.groupValues?.get(1)
                 ?.let { unescapeHtml(it) }
                 ?.takeIf { it.isNotBlank() }
                 ?: "（来自 HTML 导入）"
@@ -69,7 +70,7 @@ object FavoriteImporter {
             val cols = line.split("\t")
             if (cols.size < 2) return@forEach
             val url = cols[1].trim()
-            val threadId = THREAD_ID.find(url)?.groupValues[1]?.toLongOrNull() ?: 0L
+            val threadId = THREAD_ID.find(url)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
             if (threadId == 0L) return@forEach
             val title = cols[0].trim().takeIf { it.isNotBlank() } ?: "（来自链接导入）"
             val ok = insert(
@@ -95,12 +96,14 @@ object FavoriteImporter {
         val exists = LitePal.where("threadId = ?", threadId.toString())
             .findFirst<Favorite>() != null
         if (exists) return false
+        val now = System.currentTimeMillis()
         Favorite(
             threadId = threadId,
             title = title,
             forumName = forumName,
             authorName = authorName,
             url = url.ifBlank { "https://tieba.baidu.com/p/$threadId" },
+            timestamp = now,
         ).save()
         return true
     }
