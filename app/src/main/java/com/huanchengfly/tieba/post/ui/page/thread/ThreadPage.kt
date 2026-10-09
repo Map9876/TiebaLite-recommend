@@ -174,7 +174,6 @@ import com.huanchengfly.tieba.post.utils.TiebaUtil
 import com.huanchengfly.tieba.post.models.ThreadFavoriteInfo
 import com.huanchengfly.tieba.post.repository.FavoriteRepository
 import com.huanchengfly.tieba.post.toastReplace
-import com.huanchengfly.tieba.post.utils.FavoriteHtmlExporter
 import com.huanchengfly.tieba.post.utils.ThreadViewCache
 import com.huanchengfly.tieba.post.utils.Util.getIconColorByLevel
 import com.huanchengfly.tieba.post.utils.appPreferences
@@ -937,7 +936,7 @@ fun ThreadPage(
                         .ifBlank { postAuthor?.get { name }.orEmpty() },
                     text = renders.joinToString("\n") { it.toString() },
                     images = renders.filterIsInstance<PicContentRender>()
-                        .map { FavoriteHtmlExporter.stripQuery(it.originUrl.ifBlank { it.picUrl }) },
+                        .map { it.originUrl.ifBlank { it.picUrl } },
                 )
             }
         }
@@ -1197,9 +1196,7 @@ fun ThreadPage(
                                     .filterIsInstance<PicContentRender>()
                                     .firstOrNull()
                                     ?.let {
-                                        FavoriteHtmlExporter.stripQuery(
-                                            it.originUrl.ifBlank { it.picUrl }
-                                        )
+                                        it.originUrl.ifBlank { it.picUrl }
                                     }
                             )
                         },

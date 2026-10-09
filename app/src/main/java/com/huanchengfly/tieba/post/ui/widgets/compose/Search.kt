@@ -54,7 +54,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEach
 import com.huanchengfly.tieba.post.R
 import com.huanchengfly.tieba.post.models.ThreadFavoriteInfo
-import com.huanchengfly.tieba.post.utils.FavoriteHtmlExporter
 import com.huanchengfly.tieba.post.api.models.SearchThreadBean
 import com.huanchengfly.tieba.post.arch.BaseComposeActivity
 import com.huanchengfly.tieba.post.ui.common.PbContentText
@@ -316,12 +315,10 @@ fun SearchThreadItem(
                                 forumName = item.forumName,
                                 authorName = item.user.showNickname ?: item.user.userName,
                                 abstractText = item.content,
-                                coverUrl = item.media.firstOrNull()
-                                    ?.let { m ->
-                                        listOfNotNull(m.bigPic, m.src, m.smallPic, m.waterPic)
-                                            .firstOrNull { it.isNotBlank() }
-                                    }
-                                    ?.let { FavoriteHtmlExporter.stripQuery(it) },
+                                coverUrl = item.media.firstOrNull()?.let { m ->
+                                    listOfNotNull(m.bigPic, m.src, m.smallPic, m.waterPic)
+                                        .firstOrNull { it.isNotBlank() }
+                                },
                             )
                         }
                     }

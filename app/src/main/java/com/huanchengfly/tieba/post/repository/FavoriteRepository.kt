@@ -2,7 +2,6 @@ package com.huanchengfly.tieba.post.repository
 
 import com.huanchengfly.tieba.post.models.ThreadFavoriteInfo
 import com.huanchengfly.tieba.post.models.database.Favorite
-import com.huanchengfly.tieba.post.utils.FavoriteHtmlExporter
 import com.huanchengfly.tieba.post.utils.ThreadViewCache
 import com.huanchengfly.tieba.post.utils.extension.findFlow
 import kotlinx.coroutines.Dispatchers

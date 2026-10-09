@@ -180,18 +180,8 @@ object FavoriteHtmlExporter {
     private fun imageCount(favorite: Favorite): Int =
         favorite.imageUrls?.lineSequence()?.filter { it.isNotBlank() }?.count() ?: 0
 
-    /**
-     * 去掉图片地址上的查询串。
-     *
-     * 贴吧图片 URL 常带 `?tbpicau=2026-10-20-xxxx` 这类带时效的鉴权参数，
-     * 存下来过一阵就失效了。去掉参数后剩下的
-     * `https://tiebapic.baidu.com/forum/pic/item/<hash>.jpg` 是长期可用的。
-     */
-    fun stripQuery(url: String): String =
-        url.substringBefore('?').ifBlank { url }
-
     private fun fetchAsDataUri(url: String): String? = runCatching {
-        val request = Request.Builder().url(stripQuery(url))
+        val request = Request.Builder().url(url)
             .header("User-Agent", "Mozilla/5.0").build()
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) return null

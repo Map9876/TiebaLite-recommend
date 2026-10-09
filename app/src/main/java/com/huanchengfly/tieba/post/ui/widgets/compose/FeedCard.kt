@@ -85,7 +85,6 @@ import com.huanchengfly.tieba.post.goToActivity
 import com.huanchengfly.tieba.post.models.ThreadFavoriteInfo
 import com.huanchengfly.tieba.post.repository.FavoriteRepository
 import com.huanchengfly.tieba.post.toastReplace
-import com.huanchengfly.tieba.post.utils.FavoriteHtmlExporter
 import com.huanchengfly.tieba.post.toastShort
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
 import com.huanchengfly.tieba.post.ui.common.windowsizeclass.WindowWidthSizeClass
@@ -873,7 +872,6 @@ fun FeedCard(
                             coverUrl = item.get { media }.firstOrNull()?.let { m ->
                                 listOf(m.originPic, m.bigPic, m.srcPic)
                                     .firstOrNull { it.isNotBlank() }
-                                    ?.let { FavoriteHtmlExporter.stripQuery(it) }
                             },
                         )
                     }
