@@ -23,7 +23,7 @@ object ThreadViewCache {
     const val TTL_MILLIS = 2 * 60 * 60 * 1000L
 
     private const val MAX_THREADS = 50
-    private const val MAX_FLOORS_PER_PAGE = 80
+    private const val MAX_FLOORS_TOTAL = 400
     private const val MAX_IMAGES_PER_FLOOR = 4
     private const val MAX_TEXT_CHARS = 20_000
     private const val MAX_IMAGES_TOTAL = 40
@@ -36,11 +36,16 @@ object ThreadViewCache {
         val images: List<String>,
     )
 
-    /** 存进数据库的楼层结构。带 page，导出 HTML 时按页分组渲染。 */
+    /**
+     * 存进数据库的楼层结构。
+     *
+     * 刻意**不存页码**：浏览列表里每个楼层没有页归属，而按页存会导致
+     * 「当前页之前的所有楼层」被整份重复写进每一页（导出时表现为每页内容一样）。
+     * 楼层号在同一帖内唯一，按楼层号排序就等于正确的阅读顺序。
+     */
     @Immutable
     @kotlinx.serialization.Serializable
     data class CachedFloor(
-        val page: Int,
         val floor: Int,
         val author: String? = null,
         val text: String = "",
@@ -48,15 +53,10 @@ object ThreadViewCache {
     )
 
     /** 把结构化楼层转成 JSON 存库，导出时再解析出来按布局渲染 */
-    fun toFloorsJson(pages: Map<Int, List<Floor>>): String = runCatching {
-        val list = pages.keys.sorted().flatMap { page ->
-            pages[page].orEmpty().map {
-                CachedFloor(page, it.floor, it.author, it.text, it.images)
-            }
-        }
+    fun toFloorsJson(floors: List<Floor>): String = runCatching {
         kotlinx.serialization.json.Json.encodeToString(
             kotlinx.serialization.builtins.ListSerializer(CachedFloor.serializer()),
-            list
+            floors.map { CachedFloor(it.floor, it.author, it.text, it.images) }
         )
     }.getOrDefault("")
 
@@ -77,25 +77,23 @@ object ThreadViewCache {
         val forumName: String,
         val authorName: String?,
         val url: String,
-        val pages: Map<Int, List<Floor>>,
+        /** 已看过的楼层，按楼层号去重升序 */
+        val floors: List<Floor>,
         val updatedAt: Long,
     ) {
         val maxPage: Int
-            get() = pages.keys.maxOrNull() ?: 0
+            get() = 1
 
         /** 拼成可搜索、可导出的纯文本 */
         fun toPlainText(): String {
             val sb = StringBuilder()
-            pages.keys.sorted().forEach { page ->
-                sb.append("—— 第 ").append(page).append(" 页 ——\n")
-                pages[page]?.forEach { floor ->
-                    if (floor.text.isBlank() && floor.images.isEmpty()) return@forEach
-                    sb.append('#').append(floor.floor).append(' ')
-                    if (!floor.author.isNullOrBlank()) sb.append(floor.author).append("：")
-                    sb.append(floor.text)
-                    if (floor.images.isNotEmpty()) sb.append(" [图片]")
-                    sb.append('\n')
-                }
+            floors.forEach { floor ->
+                if (floor.text.isBlank() && floor.images.isEmpty()) return@forEach
+                sb.append('#').append(floor.floor).append(' ')
+                if (!floor.author.isNullOrBlank()) sb.append(floor.author).append("：")
+                sb.append(floor.text)
+                if (floor.images.isNotEmpty()) sb.append(" [图片]")
+                sb.append('\n')
             }
             return sb.toString().let { if (it.length > MAX_TEXT_CHARS) it.substring(0, MAX_TEXT_CHARS) else it }
         }
@@ -103,11 +101,9 @@ object ThreadViewCache {
         /** 看过的楼层里的图片地址，去重后按出现顺序 */
         fun imageUrls(): List<String> {
             val urls = LinkedHashSet<String>()
-            pages.keys.sorted().forEach { page ->
-                pages[page]?.forEach { floor ->
-                    floor.images.forEach {
-                        if (it.isNotBlank()) urls.add(it)
-                    }
+            floors.forEach { floor ->
+                floor.images.forEach {
+                    if (it.isNotBlank()) urls.add(it)
                 }
             }
             return urls.take(MAX_IMAGES_TOTAL)
@@ -118,33 +114,34 @@ object ThreadViewCache {
     private val cache = LinkedHashMap<Long, Snapshot>(32, 0.75f, true)
 
     /**
-     * 记录一页。重复记录同一页会覆盖（内容有更新时）。
-     * @param floors 该页楼层，已按楼层号升序
+     * 记录已加载的楼层。同一楼层号后写的覆盖先写的（内容有更新时），
+     * 不同楼层号按楼层号升序合并。
      */
     fun record(
         threadId: Long,
-        page: Int,
         title: String,
         forumName: String,
         authorName: String?,
         floors: List<Floor>,
     ) {
         if (threadId == 0L) return
-        val trimmed = floors.take(MAX_FLOORS_PER_PAGE).map {
+        val trimmed = floors.map {
             if (it.images.size > MAX_IMAGES_PER_FLOOR) it.copy(images = it.images.take(MAX_IMAGES_PER_FLOOR)) else it
         }
         synchronized(lock) {
             sweepLocked()
             val old = cache[threadId]
-            val pages = LinkedHashMap<Int, List<Floor>>(old?.pages ?: emptyMap())
-            pages[page] = trimmed
+            // 按楼层号去重：新的覆盖旧的，最后按楼层号升序
+            val merged = LinkedHashMap<Int, Floor>((old?.floors?.size ?: 0) + trimmed.size)
+            old?.floors?.forEach { merged[it.floor] = it }
+            trimmed.forEach { merged[it.floor] = it }
             cache[threadId] = Snapshot(
                 threadId = threadId,
                 title = title.ifBlank { old?.title.orEmpty() },
                 forumName = forumName.ifBlank { old?.forumName.orEmpty() },
                 authorName = authorName?.ifBlank { null } ?: old?.authorName,
                 url = "https://tieba.baidu.com/p/$threadId",
-                pages = pages,
+                floors = merged.values.sortedBy { it.floor }.takeLast(MAX_FLOORS_TOTAL),
                 updatedAt = System.currentTimeMillis(),
             )
             evictLocked()
@@ -168,7 +165,7 @@ object ThreadViewCache {
             text = snapshot.toPlainText(),
             maxPage = max(snapshot.maxPage, 1),
             imageUrls = snapshot.imageUrls(),
-            floorsJson = toFloorsJson(snapshot.pages)
+            floorsJson = toFloorsJson(snapshot.floors)
         )
     }
 

@@ -943,7 +943,6 @@ fun ThreadPage(
         withContext(Dispatchers.Default) {
             ThreadViewCache.record(
                 threadId = threadId,
-                page = max(currentPageMax, 1),
                 title = threadTitle,
                 forumName = curForumName.orEmpty(),
                 authorName = authorName,

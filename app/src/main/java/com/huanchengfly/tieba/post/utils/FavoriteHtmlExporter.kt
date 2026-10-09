@@ -90,14 +90,8 @@ object FavoriteHtmlExporter {
                     if (floors.isNotEmpty()) {
                         // dataUri 是按楼层顺序抓下来的图片，用游标逐个归位给对应楼层
                         sb.append("<div class=\"floors\">\n")
-                        var lastPage = -1
                         var cursor = 0
                         floors.forEach { floor ->
-                            if (floor.page != lastPage) {
-                                lastPage = floor.page
-                                sb.append("<div class=\"page-sep\">第 ").append(floor.page)
-                                    .append(" 页</div>\n")
-                            }
                             if (floor.text.isBlank() && floor.images.isEmpty()) return@forEach
                             sb.append("<div class=\"floor\">\n")
                             sb.append("<div class=\"floor-head\">")

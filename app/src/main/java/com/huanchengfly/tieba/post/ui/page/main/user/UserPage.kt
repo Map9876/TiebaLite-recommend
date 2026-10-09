@@ -28,6 +28,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.huanchengfly.tieba.post.utils.FavoriteExportDir
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -249,6 +256,59 @@ fun UserPage(
         initial = null
     )
 
+    // 收藏夹存档开关：已授权就锁死，不给关（关掉只会让用户以为收藏丢了）
+    var favoriteDirOn by remember {
+        mutableStateOf(
+            context.appPreferences.exportDirUri.orEmpty().isNotBlank() ||
+                FavoriteExportDir.legacyPublicDir() != null
+        )
+    }
+    val favoriteDirLocked = remember {
+        // 一进来就已经能用公共目录（老系统免授权 / 之前授权过），就不再让用户管
+        context.appPreferences.exportDirUri.orEmpty().isNotBlank() ||
+            FavoriteExportDir.legacyPublicDir() != null
+    }
+    fun prefDirPath(): String {
+        val dir = FavoriteExportDir.legacyPublicDir()
+        return dir?.absolutePath
+            ?: context.appPreferences.exportDirUri.orEmpty()
+                .replace(Regex("^content://[^/]+/tree/"), "")
+                .replace(Regex("^document/[^%]+%3A"), "")
+                .replace("primary:", "内部存储/")
+    }
+    fun enableFavoriteDir(path: String) {
+        context.appPreferences.exportDirUri =
+            if (FavoriteExportDir.legacyPublicDir() != null) "" else path
+        favoriteDirOn = true
+        // 私有目录里已有的导出文件顺手挪过去（静默）
+        FavoriteExportDir.migrateToPublicDir(context)
+    }
+
+    // Android 11+ 公共目录受作用域存储限制，只能让用户在系统选择器里授权一次。
+    // 只需要选到「下载」这一层，App 自己会建 TiebaLite 子目录，用户不用起名字。
+    val favoriteDirLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { treeUri ->
+        if (treeUri == null) return@rememberLauncherForActivityResult
+        val granted = runCatching {
+            context.contentResolver.takePersistableUriPermission(
+                treeUri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+        }
+        if (granted.isFailure) return@rememberLauncherForActivityResult
+        runCatching {
+            val sub = FavoriteExportDir.resolveUserDir(context, treeUri)
+            context.contentResolver.takePersistableUriPermission(
+                sub,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+            context.appPreferences.exportDirUri = sub.toString()
+        }.onSuccess {
+            favoriteDirOn = true
+        }
+    }
+
     val switchToNightDialogState = rememberDialogState()
     ConfirmDialog(
         dialogState = switchToNightDialogState,
@@ -325,6 +385,11 @@ fun UserPage(
                     )
                 }
                 // 未登录时进本地收藏（免登录收藏），已登录保持原来的服务端收藏夹
+                //
+                // 右侧的开关控制「收藏夹实时存一份到公共目录的 TiebaLite 文件夹」。
+                // 放在这一行而不是另开一页，是因为它就是「我的本地收藏」这件事的一个属性，
+                // 单独放一页反而要用户来回跳。授权成功后开关锁死不可关——
+                // 关掉等于让用户以为收藏会丢，实际上只是又回到私有目录。
                 ListMenuItem(
                     icon = ImageVector.vectorResource(id = R.drawable.ic_favorite),
                     text = stringResource(id = R.string.title_my_collect),
@@ -335,7 +400,27 @@ fun UserPage(
                             navigator.navigate(LocalFavoritePageDestination)
                         }
                     }
-                )
+                ) {
+                    Switch(
+                        checked = favoriteDirOn,
+                        onCheckedChange = { checked ->
+                            if (checked) {
+                                // Android 10 及以下能直接写公共目录，不用打扰用户
+                                if (FavoriteExportDir.legacyPublicDir() != null) {
+                                    enableFavoriteDir(prefDirPath())
+                                } else {
+                                    favoriteDirLauncher.launch(null)
+                                }
+                            } else {
+                                // 已授权的不给关
+                                if (favoriteDirOn && favoriteDirLocked) return@Switch
+                                context.appPreferences.exportDirUri = ""
+                                favoriteDirOn = false
+                            }
+                        },
+                        enabled = !(favoriteDirOn && favoriteDirLocked),
+                    )
+                }
                 ListMenuItem(
                     icon = ImageVector.vectorResource(id = R.drawable.ic_outline_watch_later_24),
                     text = stringResource(id = R.string.title_history),

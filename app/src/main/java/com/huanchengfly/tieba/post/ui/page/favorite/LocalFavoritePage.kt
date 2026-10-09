@@ -68,10 +68,8 @@ import com.huanchengfly.tieba.post.arch.onEvent
 import com.huanchengfly.tieba.post.arch.pageViewModel
 import com.huanchengfly.tieba.post.models.database.Favorite
 import com.huanchengfly.tieba.post.repository.FavoriteRepository
-import com.huanchengfly.tieba.post.utils.FavoriteAutoSave
 import com.huanchengfly.tieba.post.utils.FavoriteCoverRefresher
 import com.huanchengfly.tieba.post.utils.FavoriteExportDir
-import com.huanchengfly.tieba.post.utils.appPreferences
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
 import com.huanchengfly.tieba.post.ui.page.destinations.ThreadPageDestination
 import com.huanchengfly.tieba.post.ui.widgets.compose.ActionItem
@@ -159,28 +157,6 @@ fun LocalFavoritePage(
     )
     val isError by remember { derivedStateOf { error != null } }
 
-    // 导出目录：用户选文件夹，授权后卸载 App 文件也还在
-    var exportDirUri by remember {
-        mutableStateOf(context.appPreferences.exportDirUri.orEmpty())
-    }
-    val exportDirLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
-    ) { treeUri ->
-        if (treeUri == null) return@rememberLauncherForActivityResult
-        runCatching {
-            // 拿到长期读写权，不然下次进 App 就失效了
-            context.contentResolver.takePersistableUriPermission(
-                treeUri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            )
-        }
-        context.appPreferences.exportDirUri = treeUri.toString()
-        exportDirUri = treeUri.toString()
-        // 已经导出过的文件顺手挪过去（静默，不弹提示——回调里没有协程作用域，
-        // 加提示反而要额外引入 scope，先不做）
-        FavoriteExportDir.migrateToUserDir(context)
-    }
-
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -209,15 +185,15 @@ fun LocalFavoritePage(
             val result = when (event.kind) {
                 FavoriteExportKind.HTML -> FavoriteExportDir.write(
                     context, event.content, "tieba_favorites", "html"
-                ).copy(mime = "text/html")
+                )
 
                 FavoriteExportKind.LINKS -> FavoriteExportDir.write(
                     context, event.content, "tieba_favorites_links", "txt"
-                ).copy(mime = "text/plain")
+                )
 
                 FavoriteExportKind.BACKUP -> FavoriteExportDir.write(
                     context, event.content, "tieba_favorites_backup", "json"
-                ).copy(mime = "application/json")
+                )
             }
             // 私有目录用 FileProvider，用户目录直接用 SAF 给回来的 Uri
             val shareUri: Uri = when (val target = result.uri) {
@@ -248,17 +224,26 @@ fun LocalFavoritePage(
         onConfirm = {
             viewModel.send(LocalFavoriteUiIntent.DeleteSelected(selected.toList()))
         },
-        onDismiss = { viewModel.send(LocalFavoriteUiIntent.ClearSelection) },
+        onDismiss = { exitSelectMode() },
     ) {
         Text(text = stringResource(R.string.dialog_delete_favorite_confirm, selected.size))
     }
 
     val selectedIds = remember(selected) { selected.toList() }
-    val hasSelection = selectedIds.isNotEmpty()
 
-    // 有勾选时按返回键先取消勾选，不要直接退出页面
-    BackHandler(enabled = hasSelection) {
+    // 「选择模式」和「当前有勾选」是两件事：
+    // 平时是浏览模式（不画勾选框、左上角是返回箭头）；用户点了顶栏的「全选」才进选择模式。
+    // 分开的好处是——在选择模式里把勾一个个全取消，勾选框不会跟着消失，
+    // 否则用户会莫名其妙地看着勾选框一个个没了。
+    var selectMode by remember { mutableStateOf(false) }
+    val exitSelectMode = {
+        selectMode = false
         viewModel.send(LocalFavoriteUiIntent.ClearSelection)
+    }
+
+    // 选择模式下按返回键先退回浏览模式，不要直接退出页面
+    BackHandler(enabled = selectMode) {
+        exitSelectMode()
     }
     val allSelected = remember(data, selected) {
         data.isNotEmpty() && data.all { it.threadId in selected }
@@ -280,7 +265,7 @@ fun LocalFavoritePage(
                             style = MaterialTheme.typography.h6,
                             maxLines = 1
                         )
-                        if (hasSelection) {
+                        if (selectMode) {
                             Text(
                                 text = stringResource(
                                     R.string.favorite_selected_count,
@@ -293,22 +278,23 @@ fun LocalFavoritePage(
                     }
                 },
                 navigationIcon = {
-                    // 选中态下这个箭头是「取消勾选」，不是「返回上一页」
-                    Icon(
-                        imageVector = Icons.Rounded.Close,
-                        contentDescription = stringResource(id = R.string.title_favorite_clear_select),
-                        tint = ExtendedTheme.colors.text,
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .clickable(enabled = hasSelection) {
-                                if (hasSelection) {
-                                    viewModel.send(LocalFavoriteUiIntent.ClearSelection)
-                                } else {
-                                    navigator.navigateUp()
-                                }
-                            }
-                            .padding(8.dp)
-                    )
+                    // 没选中时是普通的返回箭头；进入选择模式后才换成 X（= 退出选择）。
+                    // 之前不区分，一直显示 X，看着像「这个页面只能关不能退」。
+                    if (selectMode) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = stringResource(
+                                id = R.string.title_favorite_clear_select
+                            ),
+                            tint = ExtendedTheme.colors.text,
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .clickable { exitSelectMode() }
+                                .padding(8.dp)
+                        )
+                    } else {
+                        BackNavigationIcon(onBackPressed = { navigator.navigateUp() })
+                    }
                 },
                 actions = {
                     // 用文字按钮而不是图标：之前三个「+」/勾/垃圾桶图标用户完全认不出
@@ -320,6 +306,7 @@ fun LocalFavoritePage(
                             else R.string.title_favorite_select_all
                         )
                     ) {
+                        selectMode = true
                         if (allSelected) {
                             viewModel.send(LocalFavoriteUiIntent.ClearSelection)
                         } else {
@@ -334,7 +321,7 @@ fun LocalFavoritePage(
                     ) {
                         importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
                     }
-                    if (hasSelection) {
+                    if (selectMode) {
                         ActionItem(
                             icon = Icons.Outlined.Delete,
                             contentDescription = stringResource(id = R.string.title_delete)
@@ -346,7 +333,7 @@ fun LocalFavoritePage(
             )
         },
         bottomBar = {
-            if (hasSelection) {
+            if (selectMode) {
                 ExportBar(
                     exporting = exporting,
                     exportProgress = exportProgress,
@@ -404,61 +391,6 @@ fun LocalFavoritePage(
                     }
                 )
             }
-            // 导出目录：默认 App 私有目录，授权后写到用户选的文件夹
-            // （卸载 App 文件也还在）。放搜索框下面，不再往设置页里藏
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 12.dp, end = 12.dp, bottom = 4.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.title_favorite_export_dir),
-                    fontSize = 12.sp,
-                    color = ExtendedTheme.colors.textSecondary,
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = if (exportDirUri.isBlank())
-                        stringResource(R.string.title_favorite_export_dir_private)
-                    else stringResource(R.string.title_favorite_export_dir_user),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = ExtendedTheme.colors.text,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                TextButton(onClick = { exportDirLauncher.launch(null) }) {
-                    Text(
-                        text = stringResource(R.string.button_favorite_export_dir_change),
-                        fontSize = 12.sp
-                    )
-                }
-                if (exportDirUri.isNotBlank()) {
-                    TextButton(onClick = {
-                        context.appPreferences.exportDirUri = ""
-                        exportDirUri = ""
-                    }) {
-                        Text(
-                            text = stringResource(R.string.button_favorite_export_dir_reset),
-                            fontSize = 12.sp
-                        )
-                    }
-                }
-            }
-
-            // 授权了就说明「收藏夹实时存在这、卸载也丢不了」，没授权就提示选一个
-            Text(
-                text = if (exportDirUri.isBlank())
-                    stringResource(R.string.title_favorite_autosave_off)
-                else stringResource(R.string.title_favorite_autosave_on) +
-                    " " + (FavoriteAutoSave.savedPath(context) ?: FavoriteAutoSave.FILE_NAME),
-                fontSize = 11.sp,
-                color = ExtendedTheme.colors.textSecondary,
-                modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 6.dp),
-            )
-
             StateScreen(
                 isEmpty = data.isEmpty(),
                 isError = isError,
@@ -489,8 +421,9 @@ fun LocalFavoritePage(
                         FavoriteItem(
                             favorite = favorite,
                             selected = favorite.threadId in selected,
+                            selectionMode = selectMode,
                             onClick = {
-                                if (hasSelection) {
+                                if (selectMode) {
                                     viewModel.send(
                                         LocalFavoriteUiIntent.ToggleSelect(favorite.threadId)
                                     )
@@ -527,6 +460,7 @@ fun LocalFavoritePage(
 private fun FavoriteItem(
     favorite: Favorite,
     selected: Boolean,
+    selectionMode: Boolean,
     onClick: () -> Unit,
     onCopyLink: () -> Unit,
     onDelete: () -> Unit,
@@ -588,10 +522,14 @@ private fun FavoriteItem(
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                     }
-                    SelectBox(
-                        selected = selected,
-                        modifier = Modifier.padding(top = 6.dp)
-                    )
+                    // 没进入选择态就不画勾选框：平时列表是干净的浏览视图，
+                    // 用户主动全选/勾选后才出现
+                    if (selectionMode) {
+                        SelectBox(
+                            selected = selected,
+                            modifier = Modifier.padding(top = 6.dp)
+                        )
+                    }
                     Column(
                         modifier = Modifier
                             .weight(1f)

@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import com.huanchengfly.tieba.post.repository.FavoriteRepository
 import kotlinx.coroutines.Dispatchers
+import java.io.File
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -29,10 +30,24 @@ object FavoriteAutoSave {
      * 不能因为它把正常的收藏操作搞崩。
      */
     fun trigger(context: Context) {
+        // 开关关着就不存。老系统（能免授权直接写公共目录）不需要 Uri，靠 exportDirUri
+        // 为空来区分：这时走 FavoriteExportDir.write，它自己会落到公共目录。
         val saved = context.appPreferences.exportDirUri.orEmpty()
-        if (saved.isBlank()) return
+        val legacy = saved.isBlank() && FavoriteExportDir.legacyPublicDir() != null
+        if (saved.isBlank() && !legacy) return
         GlobalScope.launch(Dispatchers.IO) {
-            runCatching { write(context, Uri.parse(saved)) }
+            runCatching {
+                if (legacy) {
+                    // 覆盖写同名文件，目录里永远只有一份最新的
+                    val dir = FavoriteExportDir.legacyPublicDir()
+                    File(dir, FILE_NAME).writeText(
+                        FavoriteRepository.exportPayload(null),
+                        Charsets.UTF_8
+                    )
+                } else {
+                    write(context, Uri.parse(saved))
+                }
+            }
         }
     }
 
@@ -55,7 +70,10 @@ object FavoriteAutoSave {
     /** 展示用：授权了就返回存档文件路径，没授权返回 null */
     fun savedPath(context: Context): String? {
         val saved = context.appPreferences.exportDirUri.orEmpty()
-        if (saved.isBlank()) return null
+        if (saved.isBlank()) {
+            return FavoriteExportDir.legacyPublicDir()
+                ?.let { "${it.absolutePath}/$FILE_NAME" }
+        }
         val readable = Uri.parse(saved).lastPathSegment.orEmpty().replace(":", "/")
         return if (readable.isBlank()) FILE_NAME else "$readable/$FILE_NAME"
     }

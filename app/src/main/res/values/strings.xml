@@ -539,14 +539,6 @@
     <string name="toast_favorite_import_failed">导入失败：认不出这个文件是哪种格式</string>
     <string name="toast_favorite_exported">可复制：已导出到 %1$s</string>
     <string name="toast_favorite_export_dir_failed">写不进选中的文件夹，可能授权已失效，已改回 App 私有目录</string>
-    <string name="title_favorite_export_dir">导出到</string>
-    <string name="title_favorite_export_dir_private">App 私有目录</string>
-    <string name="title_favorite_export_dir_user">已选文件夹</string>
-    <string name="button_favorite_export_dir_change">换个文件夹</string>
-    <string name="button_favorite_export_dir_reset">改回 App 私有目录</string>
-    <string name="toast_favorite_export_dir_moved">已把 %1$d 个旧文件挪到新文件夹</string>
-    <string name="title_favorite_autosave_on">收藏夹会实时保存在这里，卸载 App 后仍可保留：</string>
-    <string name="title_favorite_autosave_off">选个文件夹，收藏夹就会实时存一份 json 过去，卸载 App 也丢不了</string>
     <string name="favorite_content_missing">（收藏时没记录正文，只存了标题）</string>
     <string name="dialog_delete_favorite_confirm">确定删除选中的 %1$d 条收藏？</string>
     <string name="title_favorite_copy_link">复制链接</string>

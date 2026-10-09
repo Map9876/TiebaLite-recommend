@@ -21,7 +21,6 @@ import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.Icon
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.DateRange
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.IconButton
@@ -61,7 +60,6 @@ import com.huanchengfly.tieba.post.ui.widgets.compose.LoadMoreLayout
 import com.huanchengfly.tieba.post.ui.widgets.compose.MyLazyColumn
 import com.huanchengfly.tieba.post.ui.widgets.compose.PromptDialog
 import com.huanchengfly.tieba.post.ui.widgets.compose.NetworkImage
-import com.huanchengfly.tieba.post.ui.widgets.compose.rememberDialogState
 import com.huanchengfly.tieba.post.ui.widgets.compose.Sizes
 import com.huanchengfly.tieba.post.ui.widgets.compose.ThreadAgreeBtn
 import com.huanchengfly.tieba.post.ui.widgets.compose.ThreadContent
@@ -131,8 +129,6 @@ fun HotThreadListPage(
         // 上次翻到哪了
         var lastSeen by remember(forumName) { mutableStateOf<ForumBrowse?>(null) }
         var samples by remember(forumName) { mutableStateOf(emptyList<ForumPageSample>()) }
-        var jumpHint by remember(forumName) { mutableStateOf<String?>(null) }
-        val jumpToDateDialog = rememberDialogState()
         LaunchedEffect(forumName) {
             lastSeen = ForumBrowseMemory.load(forumName, SwanTiebaApi.TAB_HOT)
             samples = ForumPageSampler.samples(forumName, SwanTiebaApi.TAB_HOT)
@@ -165,45 +161,6 @@ fun HotThreadListPage(
             }
         }
 
-        // 「跳到指定日期」：靠采样点插值估算页码，估不准也无所谓，往下翻能接上
-        PromptDialog(
-            dialogState = jumpToDateDialog,
-            onConfirm = { input ->
-                val target = parseTargetDate(input)
-                if (target == null) {
-                    jumpHint = "看不懂这个日期，试试 2026-09-01 或 0901"
-                } else {
-                    val page = ForumPageSampler.estimatePage(samples, target)
-                    if (page == null) {
-                        val oldest = ForumPageSampler.oldestCovered(samples)
-                        jumpHint = if (oldest <= 0) {
-                            "还没有采样点，先往后翻几页再试"
-                        } else {
-                            "现有采样只探到 ${formatDay(oldest)}，" +
-                                "再往后翻几页就能定位到更早的"
-                        }
-                    } else {
-                        viewModel.send(
-                            HotThreadUiIntent.JumpTo(
-                                forumName = forumName,
-                                page = page,
-                                anchorTid = lastSeen?.anchorTid ?: 0L
-                            )
-                        )
-                        jumpHint = "已跳到第 $page 页附近，往下翻对照标题找 ${
-                            formatDay(target)
-                        }的帖子"
-                    }
-                }
-            },
-            title = { Text(text = "跳到指定日期") },
-        ) {
-            Text(
-                text = "输入日期，如 2026-09-01 或 0901",
-                fontSize = 12.sp,
-                color = ExtendedTheme.colors.textSecondary,
-            )
-        }
 
         StateScreen(
             isEmpty = data.isEmpty(),
@@ -285,50 +242,36 @@ fun HotThreadListPage(
                                         tint = ExtendedTheme.colors.textSecondary,
                                     )
                                 }
-                                IconButton(
-                                    onClick = { jumpToDateDialog.show() },
-                                    enabled = !isRefreshing,
+                                // 刷新按钮紧贴标题文字。做成 28dp 的小方块而不是
+                                // IconButton 默认的48dp，否则它会在这一行下方撑出空白、
+                                // 挤掉列表的可视高度
+                                Box(
+                                    modifier = Modifier.size(28.dp),
+                                    contentAlignment = Alignment.Center,
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.DateRange,
-                                        contentDescription = "跳到指定日期",
-                                        tint = ExtendedTheme.colors.textSecondary,
-                                    )
-                                }
-                                if (isRefreshing) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier
-                                            .size(24.dp)
-                                            .padding(4.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                } else {
-                                    IconButton(
-                                        onClick = {
-                                            viewModel.send(
-                                                HotThreadUiIntent.Refresh(forumName, force = true)
-                                            )
-                                        }
-                                    ) {
+                                    if (isRefreshing) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                    } else {
                                         Icon(
                                             imageVector = Icons.Rounded.Refresh,
                                             contentDescription = "刷新",
                                             tint = ExtendedTheme.colors.textSecondary,
+                                            modifier = Modifier
+                                                .size(20.dp)
+                                                .clickable {
+                                                    viewModel.send(
+                                                        HotThreadUiIntent.Refresh(
+                                                            forumName,
+                                                            force = true
+                                                        )
+                                                    )
+                                                },
                                         )
                                     }
                                 }
-                            }
-                        }
-                        if (jumpHint != null) {
-                            item(key = "JumpHint") {
-                                Text(
-                                    text = jumpHint.orEmpty(),
-                                    fontSize = 11.sp,
-                                    color = ExtendedTheme.colors.textSecondary,
-                                    modifier = Modifier.padding(
-                                        start = 16.dp, end = 16.dp, bottom = 6.dp
-                                    )
-                                )
                             }
                         }
                         if (anchorMissing) {
