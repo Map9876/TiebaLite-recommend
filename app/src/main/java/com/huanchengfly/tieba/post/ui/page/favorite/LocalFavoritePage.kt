@@ -573,10 +573,11 @@ private fun FavoriteItem(
                         // 搜索时把命中楼层展开成一行一条（左边一条竖线 + 楼层/作者 + 片段），
                         // 像 VS Code 的文件树那样单层平铺，不套多层卡片。
                         // 不展开的话用户只能看到一坨正文，得自己在里面找词。
-                        val hits = if (keyword.isNotBlank()) {
-                            FavoriteSearchHelper.floorHits(favorite, keyword)
-                        } else {
-                            emptyList()
+                        // 必须 remember：floorHits 要解析收藏时存的楼层 JSON，
+                        // 不缓存的话每次重组都会重新解析一遍，主线程直接卡死/闪退。
+                        val hits = remember(favorite.threadId, keyword) {
+                            if (keyword.isBlank()) emptyList()
+                            else FavoriteSearchHelper.floorHits(favorite, keyword)
                         }
                         if (hits.isNotEmpty()) {
                             hits.forEach { hit ->

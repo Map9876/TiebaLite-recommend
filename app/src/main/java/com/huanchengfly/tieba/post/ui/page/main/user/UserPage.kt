@@ -29,6 +29,7 @@ import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import android.content.Intent
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.mutableStateOf
@@ -296,16 +297,25 @@ fun UserPage(
                 Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             )
         }
-        if (granted.isFailure) return@rememberLauncherForActivityResult
+        if (granted.isFailure) {
+            Log.w("FavoriteDir", "takePersistableUriPermission 失败", granted.exceptionOrNull())
+            return@rememberLauncherForActivityResult
+        }
         // 只对用户选的那个 tree 拿长期权限。
         // 子目录是 App 自己 createDocument 建出来的，它继承自 tree 的授权，
         // 自己再 takePersistableUriPermission 会抛 SecurityException（那个 URI
         // 没有可持久化的 grant），把整段runCatching 拖失败、目录也就没记上。
         val sub = runCatching {
             FavoriteExportDir.resolveUserDir(context, treeUri)
-        }.getOrNull() ?: return@rememberLauncherForActivityResult
+        }.getOrElse {
+            Log.w("FavoriteDir", "resolveUserDir 失败", it)
+            return@rememberLauncherForActivityResult
+        }
         context.appPreferences.exportDirUri = sub.toString()
         favoriteDirOn = true
+        // 顺带确认能真的写进去（并把当前存档挪过去），失败会打日志
+        FavoriteExportDir.migrateToPublicDir(context)
+        Log.i("FavoriteDir", "已授权 -> $sub")
     }
 
     val switchToNightDialogState = rememberDialogState()
@@ -401,27 +411,55 @@ fun UserPage(
                     }
                 ) {
                     if (favoriteDirOn) {
-                        // 授权后不再显示开关——开关摆在行末又小又滑，
+                        // 授权后不显示开关：开关在行末又小又滑，
                         // 用户想点「我的本地收藏」很容易误触到它，然后弹出一堆系统选择器。
-                        // 改成一条不可点的状态：点不到，也不给人「这里能点」的暗示。
-                        Text(
-                            text = stringResource(R.string.my_favorite_dir_on),
-                            fontSize = 12.sp,
-                            color = ExtendedTheme.colors.primary,
-                            maxLines = 1
-                        )
+                        // 换成「状态文字 + 明确的重新授权入口」——
+                        // 点不到开关，但想换目录时也有路可走，不至于卡死。
+                        Column(horizontalAlignment = Alignment.End) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = stringResource(R.string.my_favorite_dir_on),
+                                    fontSize = 12.sp,
+                                    color = ExtendedTheme.colors.primary
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = stringResource(R.string.my_favorite_dir_change),
+                                    fontSize = 12.sp,
+                                    color = ExtendedTheme.colors.primary,
+                                    modifier = Modifier.clickable {
+                                        favoriteDirLauncher.launch(null)
+                                    }
+                                )
+                            }
+                            // 把当前真实落点摊开给用户看。之前只写「已存到」，
+                            // 用户没法确认到底写到哪了，也就判断不了有没有生效。
+                            Text(
+                                text = FavoriteExportDir.currentPathHint(context),
+                                fontSize = 10.sp,
+                                color = ExtendedTheme.colors.textSecondary,
+                                maxLines = 1
+                            )
+                        }
                     } else {
-                        Switch(
-                            checked = false,
-                            onCheckedChange = {
-                                // Android 10 及以下能直接写公共目录，不用打扰用户
-                                if (FavoriteExportDir.legacyPublicDir() != null) {
-                                    enableFavoriteDir(prefDirPath())
-                                } else {
-                                    favoriteDirLauncher.launch(null)
-                                }
-                            },
-                        )
+                        Column(horizontalAlignment = Alignment.End) {
+                            Switch(
+                                checked = false,
+                                onCheckedChange = {
+                                    // Android 10 及以下能直接写公共目录，不用打扰用户
+                                    if (FavoriteExportDir.legacyPublicDir() != null) {
+                                        enableFavoriteDir(prefDirPath())
+                                    } else {
+                                        favoriteDirLauncher.launch(null)
+                                    }
+                                },
+                            )
+                            Text(
+                                text = stringResource(R.string.my_favorite_dir_off),
+                                fontSize = 10.sp,
+                                color = ExtendedTheme.colors.textSecondary
+                            )
+                        }
                     }
                 }
                 ListMenuItem(

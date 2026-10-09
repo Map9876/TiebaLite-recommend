@@ -17,6 +17,9 @@ object FavoriteSearchHelper {
     /** 裁剪命中片段，让关键词落在中间，前后各留一点上下文 */
     private const val CONTEXT = 22
 
+    /** 楼层 JSON 超过这个大小就不展开搜索结果，避免极端数据拖垮列表 */
+    private const val MAX_JSON_CHARS = 512 * 1024
+
     /**
      * 找出这条收藏里命中关键词的楼层。
      *
@@ -30,7 +33,12 @@ object FavoriteSearchHelper {
     ): List<FloorHit> {
         val trimmed = keyword.trim()
         if (trimmed.isEmpty()) return emptyList()
-        val floors = ThreadViewCache.parseFloorsJsonDeduplicated(favorite.floorsJson)
+        val json = favorite.floorsJson
+        if (json.isNullOrBlank()) return emptyList()
+        // 兜底：楼层 JSON 理论上几百层、几十 KB，但真出现异常大的数据时
+        // 直接放弃展开，别把列表卡死。只影响搜索展示，不影响数据本身。
+        if (json.length > MAX_JSON_CHARS) return emptyList()
+        val floors = ThreadViewCache.parseFloorsJsonDeduplicated(json)
         if (floors.isEmpty()) return emptyList()
 
         // 搜索框可能输「方便面 排行」这种多词，按空格拆开任意一个命中就算

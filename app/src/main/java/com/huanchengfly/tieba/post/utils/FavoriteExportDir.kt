@@ -1,6 +1,7 @@
 package com.huanchengfly.tieba.post.utils
 
 import android.content.Context
+import android.util.Log
 import android.net.Uri
 import android.os.Build
 import androidx.documentfile.provider.DocumentFile
@@ -100,7 +101,10 @@ object FavoriteExportDir {
         // 三条路依次试：用户授权的 SAF 目录 → 免授权的公共目录 → App 私有目录。
         // 之前 SAF 那条只判断了「有没有授权」却没实现写入，
         // 结果授权之后还是落到私有目录——用户选了目录却看不到效果。
-        writeViaSaf(context, content, fileName, extension)?.let { return it }
+        writeViaSaf(context, content, fileName, extension)?.let {
+            Log.i("FavoriteExportDir", "走SAF -> ${it.path}")
+            return it
+        }
 
         legacyPublicDir()?.let { dir ->
             val written = runCatching {
@@ -114,11 +118,43 @@ object FavoriteExportDir {
                     mime = mimeOf(extension)
                 )
             }.getOrNull()
-            if (written != null) return written
+            if (written != null) {
+                Log.i("FavoriteExportDir", "走公共目录 -> ${written.path}")
+                return written
+            }
+            Log.w("FavoriteExportDir", "公共目录写失败，降级私有目录")
         }
 
+        Log.w("FavoriteExportDir", "没有任何可用公共目录，写到私有目录")
         return writePrivate(context, content, fileName, mimeOf(extension))
     }
+
+    /**
+     * 当前导出到底会写到哪，给人看的短路径。
+     *
+     * 设置页把它直接摊开显示。之前只在授权成功后写一句「已存到 TiebaLite 文件夹」，
+     * 用户没法确认到底写到哪了，也就判断不了到底生效没有——
+     * 这轮反馈的「依旧不会保存到已选择的文件」就是没法自查导致的。
+     */
+    fun currentPathHint(context: Context): String {
+        val saved = context.appPreferences.exportDirUri.orEmpty()
+        if (saved.isNotBlank()) {
+            val readable = runCatching {
+                Uri.parse(saved).lastPathSegment.orEmpty()
+                    .replace(":", "/")
+                    .replace(Regex("^document/[^/]+"), "")
+                    .trim('/')
+            }.getOrDefault("")
+            return if (readable.isBlank()) saved else readable
+        }
+        legacyPublicDir()?.let { return it.absolutePath }
+        val priv = File(
+            context.getExternalFilesDir(null) ?: context.filesDir,
+            PRIVATE_DIR_NAME
+        )
+        return priv.absolutePath
+    }
+
 
     /** 往用户授权的目录写一份。成功返回 Result，没授权/授权失效返回 null。 */
     private fun writeViaSaf(
@@ -128,11 +164,15 @@ object FavoriteExportDir {
         extension: String,
     ): Result? {
         val savedUri = context.appPreferences.exportDirUri.orEmpty()
-        if (savedUri.isBlank()) return null
+        if (savedUri.isBlank()) {
+            Log.i("FavoriteExportDir", "未授权，跳过 SAF 分支")
+            return null
+        }
         val treeUri = runCatching { Uri.parse(savedUri) }.getOrNull() ?: return null
         val tree = runCatching { DocumentFile.fromTreeUri(context, treeUri) }.getOrNull()
             ?: return null
         if (!tree.canWrite()) {
+            Log.w("FavoriteExportDir", "授权目录不可写，清掉降级")
             // 授权失效（文件夹被删/ 权限被回收），清掉让它回到未授权状态
             context.appPreferences.exportDirUri = ""
             return null
