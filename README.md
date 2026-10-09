@@ -281,6 +281,45 @@ threadList(..., threadListIds.subList(0, size).joinToString(",")) // 传这 30 �
 - 每次刷新热门榜都会重排，而且会出现只有一两条评论的帖子，因为它按的是吧内热度而不是回复数
 - 想要「按时间或回复数排序的精华」，还是得用需要登录的 pb 接口
 
+## 贴吧图片的 tbpicau 参数
+
+**结论：必须保留，去掉就变占位图。**
+
+接口返回的图片 URL 长这样，本身就带着服务端签发的 token：
+
+```
+https://tiebapic.baidu.com/forum/pic/item/0264d933c895d143027b662535f082025baf07ee.jpg
+    ?tbpicau=2026-10-20-05_34dabc4b483cc8662f8b1...
+```
+
+实测对照（同一个 URL）：
+
+| 请求 | 返回 |
+| --- | --- |
+| 带完整 `tbpicau` | **真实图片**，4096×3072 / 560×420 等正常尺寸 |
+| 砍掉 `?tbpicau=...` | 238×238 的贴吧默认图标（HTTP 仍是 200） |
+
+也就是说失效**不是 HTTP 报错**，而是服务端静默换成一张占位图，
+所以不能靠状态码判断图片还有效。
+
+期间踩过的坑，记下来：
+
+1. 曾经加过一个 `stripQuery()`，把 URL 上的 `?tbpicau=` 去掉，
+   以为剩下的是"长期可用的裸地址"。**完全相反**——去掉 token 之后
+   每张图都变成占位图。已撤掉，现在一律保留接口给的原始 URL
+2. 排查时抓 URL 用的正则是 `\.(?:jpg|png|gif)`，**遇到 `?` 就截断**，
+   抓到的是砍掉 token 的残缺 URL，于是误判成"服务端风控/限流"。
+   正则要先确认会不会把 query 吃掉
+
+接口同时也会给 `imgsrc.baidu.com/forum/pic/item/<hash>.jpg` 这类老域地址
+（不带 token），以及 `tieba-ares.cdn.bcebos.com` 上的资源，
+这两种不受 `tbpicau` 影响。
+
+参考：[lumina37/aiotieba PR #63](https://github.com/lumina37/aiotieba/pull/63)，
+里面说明 `tiebapic` 域要求 `?tbpicau=<服务端 token>`，否则返回默认图；
+token 格式 `YYYY-MM-DD-HH_{32位hex}`，早期伪造同格式字符串可绕过，
+现在（2026-10 实测）伪造已失效，必须用接口返回的真实 token。
+
 ## 两种包
 
 每次构建出两个包，可与官方版同时安装：
