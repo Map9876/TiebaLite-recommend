@@ -183,7 +183,7 @@ data class VideoContentRender(
         val widthFraction =
             if (LocalWindowSizeClass.current.widthSizeClass == WindowWidthSizeClass.Compact) 1f else 0.5f
         val context = LocalContext.current
-        val navigator = LocalNavigator.current
+        // 同 PbContentText：navigator 只在点击封面时才用，不在顶层读
 
         if (picUrl.isNotBlank()) {
             val picModifier = Modifier
@@ -211,7 +211,7 @@ data class VideoContentRender(
                     contentDescription = stringResource(id = R.string.desc_video),
                     modifier = picModifier
                         .clickable {
-                            navigator.navigate(
+                            LocalNavigator.current.navigate(
                                 WebViewPageDestination(webUrl)
                             )
                         },
@@ -296,7 +296,11 @@ fun PbContentText(
     style: TextStyle = LocalTextStyle.current,
 ) {
     val context = LocalContext.current
-    val navigator = LocalNavigator.current
+    // navigator 只在用户点击链接/用户标签时才用到。之前在这个 composable
+    // 的顶层就读取，于是任何在「没有 ProvideNavigator 的作用域」里渲染这个
+    // 组件的地方（比如收藏页搜索结果，它在 LazyColumn 的 item 里）
+    // 一渲染就抛 IllegalStateException 把页面搞崩。
+    // 改成真正点击时才读。
 
     val layoutResult = remember { mutableStateOf<TextLayoutResult?>(null) }
     EmoticonText(
@@ -317,12 +321,13 @@ fun PbContentText(
                         when (annotation.tag) {
                             "url" -> {
                                 val url = annotation.item
-                                launchUrl(context, navigator, url)
+                                launchUrl(context, LocalNavigator.current, url)
                             }
 
                             "user" -> {
                                 val uid = annotation.item.toLong()
-                                navigator.navigate(UserProfilePageDestination(uid))
+                                LocalNavigator.current
+                                    .navigate(UserProfilePageDestination(uid))
                             }
                         }
                     }
