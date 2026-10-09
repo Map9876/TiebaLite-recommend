@@ -61,8 +61,8 @@ object FavoriteSearchHelper {
         return keys.any { meta.contains(it, ignoreCase = true) }
     }
 
-    private fun snippet(text: String, matchStart: Int, matchLength: String): String {
-        val plain = text.replace('\n', ' ')
+    private fun snippet(text: String, matchStart: Int, matchLength: Int): String {
+        val plain = text.replace("\n", " ")
         if (plain.length <= CONTEXT * 2 + 10) return plain
         val start = (matchStart - CONTEXT).coerceAtLeast(0)
         val end = (matchStart + matchLength + CONTEXT).coerceAtMost(plain.length)
