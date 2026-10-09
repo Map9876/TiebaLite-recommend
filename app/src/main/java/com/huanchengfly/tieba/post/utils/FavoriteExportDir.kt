@@ -36,7 +36,7 @@ object FavoriteExportDir {
     ): Result {
         val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
         val fileName = "${baseName}_$stamp.$extension"
-        val savedUri = context.appPreferences.exportDirUri
+        val savedUri = context.appPreferences.exportDirUri.orEmpty()
 
         if (savedUri.isBlank()) {
             val dir = File(
@@ -91,7 +91,7 @@ object FavoriteExportDir {
 
     /** 把私有目录里已有的导出文件挪到用户授权的目录 */
     fun migrateToUserDir(context: Context): Int {
-        val savedUri = context.appPreferences.exportDirUri
+        val savedUri = context.appPreferences.exportDirUri.orEmpty()
         if (savedUri.isBlank()) return 0
         val treeUri = runCatching { Uri.parse(savedUri) }.getOrNull() ?: return 0
         val tree = runCatching { DocumentFile.fromTreeUri(context, treeUri) }.getOrNull()
@@ -122,7 +122,7 @@ object FavoriteExportDir {
         return if (readable.isBlank()) fileName else "$readable/$fileName"
     }
 
-    class Result(
+    data class Result(
         val path: String,
         val displayName: String,
         val uri: Any,          // File（私有目录）或 Uri（用户目录），调用方分别处理

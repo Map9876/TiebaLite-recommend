@@ -57,6 +57,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
@@ -158,7 +159,7 @@ fun LocalFavoritePage(
 
     // 导出目录：用户选文件夹，授权后卸载 App 文件也还在
     var exportDirUri by remember {
-        mutableStateOf(context.appPreferences.exportDirUri)
+        mutableStateOf(context.appPreferences.exportDirUri.orEmpty())
     }
     val exportDirLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
