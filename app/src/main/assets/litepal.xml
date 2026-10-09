@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <litepal>
     <dbname value="tblite" />
-    <version value="41" />
+    <version value="42" />
     <list>
         <mapping class="com.huanchengfly.tieba.post.models.database.Favorite" />
         <mapping class="com.huanchengfly.tieba.post.models.database.ForumBrowse" />
