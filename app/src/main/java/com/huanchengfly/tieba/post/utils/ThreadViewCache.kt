@@ -70,6 +70,32 @@ object ThreadViewCache {
         )
     }.getOrDefault(emptyList())
 
+    /**
+     * 解析结构化楼层，并把可能存在的重复楼层号折叠掉。
+     *
+     * 修「导出每页内容重复」之前存下的旧收藏，json 里同一层楼会出现多次
+     * （当时按页存，每次记录都把已加载的全部楼层重写一遍）。
+     * 新数据已经按楼层号去重，这里再兜一层，是为了让旧收藏导出来也正常——
+     * 不然用户得重新收藏一次才能拿到干净内容。
+     */
+    fun parseFloorsJsonDeduplicated(json: String?): List<CachedFloor> {
+        val raw = parseFloorsJson(json)
+        if (raw.isEmpty()) return raw
+        val byFloor = LinkedHashMap<Int, CachedFloor>(raw.size)
+        raw.forEach { floor ->
+            val existing = byFloor[floor.floor]
+            // 后出现的优先（那是翻到更后面时写入的更新版），但保留内容更全的那条
+            val better = when {
+                existing == null -> true
+                existing.text.isBlank() && floor.text.isNotBlank() -> true
+                existing.images.isEmpty() && floor.images.isNotEmpty() -> true
+                else -> false
+            }
+            if (better) byFloor[floor.floor] = floor
+        }
+        return byFloor.values.sortedBy { it.floor }
+    }
+
     @Immutable
     data class Snapshot(
         val threadId: Long,

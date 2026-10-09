@@ -86,7 +86,8 @@ object FavoriteHtmlExporter {
                             .append("</div>\n")
                     }
                     // 有结构化楼层就按楼层卡片渲染（作者/图片各归各位，不再重复）
-                    val floors = ThreadViewCache.parseFloorsJson(favorite.floorsJson)
+                    // 去重版：修 bug 之前收藏的旧数据里同一层楼会重复出现
+                    val floors = ThreadViewCache.parseFloorsJsonDeduplicated(favorite.floorsJson)
                     if (floors.isNotEmpty()) {
                         // dataUri 是按楼层顺序抓下来的图片，用游标逐个归位给对应楼层
                         sb.append("<div class=\"floors\">\n")

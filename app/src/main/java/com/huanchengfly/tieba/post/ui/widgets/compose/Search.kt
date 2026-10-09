@@ -6,6 +6,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
@@ -73,6 +77,7 @@ fun QuotePostCard(
     quotePostInfo: SearchThreadBean.PostInfo,
     mainPost: SearchThreadBean.MainPost,
     onMainPostClick: (SearchThreadBean.MainPost) -> Unit,
+    onQuotePostClick: (SearchThreadBean.PostInfo) -> Unit = {},
     modifier: Modifier = Modifier,
     medias: ImmutableList<SearchThreadBean.MediaInfo> = persistentListOf(),
     keyword: String? = null,
@@ -86,22 +91,55 @@ fun QuotePostCard(
         )
     }
     Column(
-        modifier = modifier.padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        modifier = modifier
+            .clickable { onQuotePostClick(quotePostInfo) }
+            .padding(start = 14.dp, end = 16.dp, top = 2.dp, bottom = 8.dp)
     ) {
-        HighlightText(
-            text = quoteContentString,
-            style = MaterialTheme.typography.body2,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            highlightKeywords = (keyword?.split(" ") ?: emptyList()).toImmutableList()
-        )
+        // 命中楼层用「左侧一条竖线 + 楼层/作者一行 + 正文」表示，
+        // 像 VS Code 的文件树那样靠缩进和竖线表达层级，不套卡片。
+        // 之前这里是「命中楼层卡片里再放主楼卡片」，两层边框套三层底色，
+        // 视觉上糊成一块，也看不出谁是谁。
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .width(2.dp)
+                    .height(IntrinsicSize.Min)
+                    .background(ExtendedTheme.colors.primary.copy(alpha = 0.35f))
+            )
+            Column(modifier = Modifier.padding(start = 10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = stringResource(id = R.string.search_matched_floor),
+                        fontSize = 11.sp,
+                        color = ExtendedTheme.colors.primary
+                    )
+                    Text(
+                        text = " · ${quotePostInfo.user.showNickname ?: quotePostInfo.user.userName}",
+                        fontSize = 11.sp,
+                        color = ExtendedTheme.colors.textSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                HighlightText(
+                    text = quoteContentString,
+                    style = MaterialTheme.typography.body2,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    highlightKeywords = (keyword?.split(" ") ?: emptyList()).toImmutableList()
+                )
+                // 命中楼层自己的图也列出来：搜出来就是因为这一楼有图，
+                // 只给文字用户还得再点进去才知道是什么图
+                SearchMedia(medias = medias.toImmutableList())
+            }
+        }
         MainPostCard(
             mainPost = mainPost,
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(6.dp))
-                .background(ExtendedTheme.colors.card)
+                .padding(start = 16.dp)
+                .clip(RoundedCornerShape(6.dp)
+                )
                 .clickable {
                     onMainPostClick(mainPost)
                 },
@@ -258,6 +296,7 @@ fun SearchThreadItem(
                         quotePostInfo = item.postInfo,
                         mainPost = item.mainPost,
                         onMainPostClick = onMainPostClick,
+                        onQuotePostClick = onQuotePostClick,
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(6.dp))

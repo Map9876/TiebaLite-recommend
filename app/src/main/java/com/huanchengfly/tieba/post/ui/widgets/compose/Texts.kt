@@ -479,8 +479,12 @@ fun HighlightText(
     highlightColor: Color = ExtendedTheme.colors.primary,
     highlightStyle: TextStyle = style,
 ) {
+    // 命中词画成半透明底色 + 保留原字色。只改字色的话，长句里一两个高亮词
+    // 很容易扫过去就漏掉，底色才一眼能看见。
     val mergedHighlightStyle = remember(highlightStyle, highlightColor) {
-        highlightStyle.copy(color = highlightColor)
+        highlightStyle.copy(
+            background = highlightColor.copy(alpha = 0.28f)
+        )
     }
     val highlightText = remember(text, highlightKeywords) {
         if (highlightKeywords.isEmpty()) {

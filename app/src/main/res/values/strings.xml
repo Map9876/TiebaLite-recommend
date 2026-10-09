@@ -536,6 +536,7 @@
     <string name="favorite_selected_count">已选 %1$d 项</string>
     <string name="favorite_local_only_tip">收藏保存在本机，不上传</string>
     <string name="toast_favorite_imported">成功导入 %1$d 条收藏</string>
+    <string name="search_matched_floor">命中楼层</string>
     <string name="toast_favorite_import_failed">导入失败：认不出这个文件是哪种格式</string>
     <string name="toast_favorite_exported">可复制：已导出到 %1$s</string>
     <string name="toast_favorite_export_dir_failed">写不进选中的文件夹，可能授权已失效，已改回 App 私有目录</string>
