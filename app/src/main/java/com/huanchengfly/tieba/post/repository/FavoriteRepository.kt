@@ -207,9 +207,12 @@ object FavoriteRepository {
             return query.findFlow()
         }
         val like = "%$trimmed%"
+        // floorsJson 也要搜：结构化楼层存的是每层正文，
+        // 只搜 content 的话有些命中（尤其是 content 被截断的情况）会漏掉
         return query.where(
-            "title like ? or forumName like ? or authorName like ? or abstractText like ? or content like ?",
-            like, like, like, like, like
+            "title like ? or forumName like ? or authorName like ? " +
+                "or abstractText like ? or content like ? or floorsJson like ?",
+            like, like, like, like, like, like
         ).findFlow()
     }
 

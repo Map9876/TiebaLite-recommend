@@ -11,7 +11,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.IntrinsicSize
+import com.huanchengfly.tieba.post.utils.FavoriteSearchHelper
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -416,13 +419,16 @@ fun LocalFavoritePage(
                 val lazyListState = rememberLazyListState()
                 MyLazyColumn(
                     state = lazyListState,
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    // 条目自己管内边距，外层不再加间距——
+                    // Card 内部已经有 16.dp 上下，再加 6.dp 每条之间就 22.dp 了
+                    verticalArrangement = Arrangement.spacedBy(0.dp),
                 ) {
                     items(items = data, key = { it.threadId }) { favorite ->
                         FavoriteItem(
                             favorite = favorite,
                             selected = favorite.threadId in selected,
                             selectionMode = selectMode,
+                            keyword = keyword,
                             onClick = {
                                 if (selectMode) {
                                     viewModel.send(
@@ -462,6 +468,7 @@ private fun FavoriteItem(
     favorite: Favorite,
     selected: Boolean,
     selectionMode: Boolean,
+    keyword: String = "",
     onClick: () -> Unit,
     onCopyLink: () -> Unit,
     onDelete: () -> Unit,
@@ -504,6 +511,9 @@ private fun FavoriteItem(
     ) {
         Card(
             onClick = onClick,
+            // 只留左右，竖向由下面自己控制：要紧凑无缝，
+            // 通用 Card 的 16.dp 上下留白在这个列表里太大
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
             content = {
                 Row(
                     verticalAlignment = Alignment.Top,
@@ -559,15 +569,60 @@ private fun FavoriteItem(
                             fontSize = 11.sp,
                             color = ExtendedTheme.colors.textSecondary,
                         )
-                        val preview = favorite.abstractText?.takeIf { it.isNotBlank() }
-                            ?: favorite.content?.takeIf { it.isNotBlank() }?.replace('\n', ' ')
-                        Text(
-                            text = preview ?: stringResource(R.string.favorite_content_missing),
-                            fontSize = 14.sp,
-                            maxLines = 2,
-                            color = if (preview != null) ExtendedTheme.colors.textSecondary
-                            else ExtendedTheme.colors.textDisabled,
-                        )
+                        // 搜索时把命中楼层展开成一行一条（左边一条竖线 + 楼层/作者 + 片段），
+                        // 像 VS Code 的文件树那样单层平铺，不套多层卡片。
+                        // 不展开的话用户只能看到一坨正文，得自己在里面找词。
+                        val hits = if (keyword.isNotBlank()) {
+                            FavoriteSearchHelper.floorHits(favorite, keyword)
+                        } else {
+                            emptyList()
+                        }
+                        if (hits.isNotEmpty()) {
+                            hits.forEach { hit ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 4.dp),
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(2.dp)
+                                            .height(IntrinsicSize.Min)
+                                            .background(
+                                                ExtendedTheme.colors.primary.copy(alpha = 0.35f)
+                                            )
+                                    )
+                                    Column(modifier = Modifier.padding(start = 8.dp)) {
+                                        Text(
+                                            text = "#${hit.floor} · ${hit.author}",
+                                            fontSize = 11.sp,
+                                            color = ExtendedTheme.colors.primary
+                                        )
+                                        Text(
+                                            text = hit.snippet,
+                                            fontSize = 13.sp,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                            color = ExtendedTheme.colors.textSecondary
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            val preview =
+                                favorite.abstractText?.takeIf { it.isNotBlank() }
+                                    ?: favorite.content?.takeIf { it.isNotBlank() }
+                                        ?.replace('\n', ' ')
+                            Text(
+                                text = preview
+                                    ?: stringResource(R.string.favorite_content_missing),
+                                fontSize = 14.sp,
+                                maxLines = 2,
+                                color = if (preview != null) ExtendedTheme.colors.textSecondary
+                                else ExtendedTheme.colors.textDisabled,
+                            )
+                        }
                     }
                 }
             }

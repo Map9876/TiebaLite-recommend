@@ -932,8 +932,10 @@ fun ThreadPage(
                 val postAuthor = post.get { author }
                 ThreadViewCache.Floor(
                     floor = post.get { floor },
-                    author = postAuthor?.get { nameShow }.orEmpty()
-                        .ifBlank { postAuthor?.get { name }.orEmpty() },
+                    // 用户名优先：nameShow（昵称）在有些帖子是空的，
+                    // 而 name 才是登录名。之前反过来取，结果导出全是 "-th-" 这种用户名
+                    author = postAuthor?.get { name }.orEmpty()
+                        .ifBlank { postAuthor?.get { nameShow }.orEmpty() },
                     text = renders.joinToString("\n") { it.toString() },
                     images = renders.filterIsInstance<PicContentRender>()
                         .map { it.originUrl.ifBlank { it.picUrl } },

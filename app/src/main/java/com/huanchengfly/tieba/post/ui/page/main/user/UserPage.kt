@@ -401,25 +401,29 @@ fun UserPage(
                         }
                     }
                 ) {
-                    Switch(
-                        checked = favoriteDirOn,
-                        onCheckedChange = { checked ->
-                            if (checked) {
+                    if (favoriteDirOn) {
+                        // 授权后不再显示开关——开关摆在行末又小又滑，
+                        // 用户想点「我的本地收藏」很容易误触到它，然后弹出一堆系统选择器。
+                        // 改成一条不可点的状态：点不到，也不给人「这里能点」的暗示。
+                        Text(
+                            text = stringResource(R.string.my_favorite_dir_on),
+                            fontSize = 12.sp,
+                            color = ExtendedTheme.colors.primary,
+                            maxLines = 1
+                        )
+                    } else {
+                        Switch(
+                            checked = false,
+                            onCheckedChange = {
                                 // Android 10 及以下能直接写公共目录，不用打扰用户
                                 if (FavoriteExportDir.legacyPublicDir() != null) {
                                     enableFavoriteDir(prefDirPath())
                                 } else {
                                     favoriteDirLauncher.launch(null)
                                 }
-                            } else {
-                                // 已授权的不给关
-                                if (favoriteDirOn && favoriteDirLocked) return@Switch
-                                context.appPreferences.exportDirUri = ""
-                                favoriteDirOn = false
-                            }
-                        },
-                        enabled = !(favoriteDirOn && favoriteDirLocked),
-                    )
+                            },
+                        )
+                    }
                 }
                 ListMenuItem(
                     icon = ImageVector.vectorResource(id = R.drawable.ic_outline_watch_later_24),

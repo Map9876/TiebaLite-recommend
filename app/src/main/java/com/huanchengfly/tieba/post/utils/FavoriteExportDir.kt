@@ -97,10 +97,14 @@ object FavoriteExportDir {
         val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
         val fileName = "${baseName}_$stamp.$extension"
 
-        val public = publicDir(context)
-        if (public != null) {
-            return runCatching {
-                val file = File(public, fileName)
+        // 三条路依次试：用户授权的 SAF 目录 → 免授权的公共目录 → App 私有目录。
+        // 之前 SAF 那条只判断了「有没有授权」却没实现写入，
+        // 结果授权之后还是落到私有目录——用户选了目录却看不到效果。
+        writeViaSaf(context, content, fileName, extension)?.let { return it }
+
+        legacyPublicDir()?.let { dir ->
+            val written = runCatching {
+                val file = File(dir, fileName)
                 file.writeText(content, Charsets.UTF_8)
                 Result(
                     path = file.absolutePath,
@@ -109,28 +113,59 @@ object FavoriteExportDir {
                     isUserDir = true,
                     mime = mimeOf(extension)
                 )
-            }.getOrElse {
-                // 目录写着失败了（比如权限被回收），落到私有目录
-                writePrivate(context, content, fileName, mimeOf(extension))
-            }
+            }.getOrNull()
+            if (written != null) return written
         }
 
         return writePrivate(context, content, fileName, mimeOf(extension))
     }
 
-    /** 已授权就用授权的，否则看能不能免授权直接写公共目录 */
-    private fun publicDir(context: Context): File? {
+    /** 往用户授权的目录写一份。成功返回 Result，没授权/授权失效返回 null。 */
+    private fun writeViaSaf(
+        context: Context,
+        content: String,
+        fileName: String,
+        extension: String,
+    ): Result? {
         val savedUri = context.appPreferences.exportDirUri.orEmpty()
-        if (savedUri.isNotBlank()) {
-            val treeUri = runCatching { Uri.parse(savedUri) }.getOrNull()
-            val tree = treeUri?.let {
-                runCatching { DocumentFile.fromTreeUri(context, it) }.getOrNull()
-            }
-            if (tree != null && tree.canWrite()) return null // 走 SAF 分支，不返回 File
-            // 授权失效（文件夹被删/ 权限回收），清掉让它下次重新走免授权路径
+        if (savedUri.isBlank()) return null
+        val treeUri = runCatching { Uri.parse(savedUri) }.getOrNull() ?: return null
+        val tree = runCatching { DocumentFile.fromTreeUri(context, treeUri) }.getOrNull()
+            ?: return null
+        if (!tree.canWrite()) {
+            // 授权失效（文件夹被删/ 权限被回收），清掉让它回到未授权状态
             context.appPreferences.exportDirUri = ""
+            return null
         }
-        return legacyPublicDir()
+        return runCatching {
+            // 同名的先删，不然文件管理器里会出现 "xxx (1).html"
+            tree.findFile(fileName)?.delete()
+            val doc = tree.createFile(mimeOf(extension), fileName)
+                ?: return@runCatching null
+            context.contentResolver.openOutputStream(doc.uri)?.use { out ->
+                out.write(content.toByteArray(Charsets.UTF_8))
+            } ?: return@runCatching null
+            Result(
+                path = displayPath(treeUri, fileName),
+                displayName = fileName,
+                uri = doc.uri,
+                isUserDir = true,
+                mime = mimeOf(extension)
+            )
+        }.getOrNull()
+    }
+
+    /**
+     * SAF 的 tree Uri 人眼看不懂（content://...），这里还原成
+     * 「内部存储/Download/TiebaLite/xxx.html」这种可辨认的形式。
+     */
+    private fun displayPath(treeUri: Uri, fileName: String): String {
+        val raw = treeUri.lastPathSegment.orEmpty()
+            .replace(":", "/")
+            .replace(Regex("^document/[^/]+"), "")
+            .trim('/')
+        val readable = if (raw.isBlank()) PUBLIC_DIR_NAME else raw
+        return "$readable/$fileName"
     }
 
     private fun writePrivate(context: Context, content: String, fileName: String, mime: String): Result {
