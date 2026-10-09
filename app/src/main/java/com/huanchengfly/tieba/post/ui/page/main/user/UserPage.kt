@@ -297,16 +297,15 @@ fun UserPage(
             )
         }
         if (granted.isFailure) return@rememberLauncherForActivityResult
-        runCatching {
-            val sub = FavoriteExportDir.resolveUserDir(context, treeUri)
-            context.contentResolver.takePersistableUriPermission(
-                sub,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            )
-            context.appPreferences.exportDirUri = sub.toString()
-        }.onSuccess {
-            favoriteDirOn = true
-        }
+        // 只对用户选的那个 tree 拿长期权限。
+        // 子目录是 App 自己 createDocument 建出来的，它继承自 tree 的授权，
+        // 自己再 takePersistableUriPermission 会抛 SecurityException（那个 URI
+        // 没有可持久化的 grant），把整段runCatching 拖失败、目录也就没记上。
+        val sub = runCatching {
+            FavoriteExportDir.resolveUserDir(context, treeUri)
+        }.getOrNull() ?: return@rememberLauncherForActivityResult
+        context.appPreferences.exportDirUri = sub.toString()
+        favoriteDirOn = true
     }
 
     val switchToNightDialogState = rememberDialogState()

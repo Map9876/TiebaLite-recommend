@@ -43,7 +43,62 @@ fun Switch(
     val gap = with(LocalDensity.current) { Gap.toPx() }
     val minBound = strokeWidth + gap
     val maxBound = minBound + with(LocalDensity.current) { ThumbPathLength.toPx() }
-    val swipeableState = rememberSwipeableStateFor(checked, onCheckedChange ?: {}, AnimationSpec)
+    // 自己按帧插值，不依赖 Compose 的动画体系。
+    //
+    // 系统里有个「移除动画」开关，打开后动画倍率变 0，
+    // tween / animateTo 都会被缩成瞬移，开关看起来就像坏了。
+    // 这个开关是纯 App 行为，不该被系统开关接管，
+    // 所以这里只用 withFrameNanos 自己算进度。
+    // pos 只用来驱动绘制，放在 state 里即可；
+    // from/to/startedAt 是动画的内部账本，放普通变量避免每次改都重组。
+    val pos = remember { mutableFloatStateOf(0f) }
+    val anim = remember { SwitchAnim() }
+
+    LaunchedEffect(checked) {
+        anim.from = pos.value
+        anim.to = if (checked) 1f else 0f
+        if (anim.from == anim.to) return@LaunchedEffect
+        anim.startedAt = 0L
+        while (true) {
+            var finished = false
+            withFrameNanos { now ->
+                if (anim.startedAt == 0L) anim.startedAt = now
+                val elapsed = (now - anim.startedAt) / 1_000_000f
+                val t = (elapsed / SWITCH_DURATION_MS).coerceIn(0f, 1f)
+                // ease-out：起步快、收尾慢，跟手的观感
+                val eased = 1f - (1f - t) * (1f - t)
+                pos.value = anim.from + (anim.to - anim.from) * eased
+                finished = t >= 1f
+            }
+            if (finished) return@LaunchedEffect
+        }
+    }
+
+    val swipeableState = object : SwipeableState<Float> {
+        override val anchors: Map<Float, Boolean> =
+            mapOf(minBound to false, maxBound to true)
+        override val thresholds: (Float, Float) -> FractionalThreshold = { _, _ ->
+            FractionalThreshold(0.5f)
+        }
+        override val direction: SwipeDirection = SwipeDirection.RightToLeft
+        override val offset: Float
+            get() = pos.value * (maxBound - minBound)
+        override val progress: Float
+            get() = pos.value
+        override suspend fun snapTo(targetValue: Float) {
+            pos.value = targetValue.coerceIn(0f, 1f)
+        }
+        override fun animateTo(targetValue: Float, animSpec: AnimationSpec<Float>) {
+            // 拖动跟手，松手直接落位，不再补间（补间会和上面的帧循环打架）
+            pos.value = targetValue.coerceIn(0f, 1f)
+        }
+        override fun requireOffset() = Unit
+        override fun dispatchRawDelta(delta: Float): Float {
+            val before = pos.value
+            pos.value = (before + delta / (maxBound - minBound)).coerceIn(0f, 1f)
+            return (pos.value - before) * (maxBound - minBound)
+        }
+    }
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val toggleableModifier =
         if (onCheckedChange != null) {
@@ -157,7 +212,14 @@ private val SwitchHeight = 15.dp + TrackStrokeWidth
 private val Gap = (SwitchHeight - TrackStrokeWidth - ThumbDiameter) / 2
 private val ThumbPathLength = TrackWidth - ThumbDiameter - TrackStrokeWidth * 2 - Gap * 2
 
-private val AnimationSpec = TweenSpec<Float>(durationMillis = 100)
+/** 开关动画的内部账本。放这里而不是 state 里，是为了每帧改它不会触发重组。 */
+private class SwitchAnim {
+    var from: Float = 0f
+    var to: Float = 0f
+    var startedAt: Long = 0L
+}
+
+private const val SWITCH_DURATION_MS = 140f
 
 @Stable
 interface SwitchColors {

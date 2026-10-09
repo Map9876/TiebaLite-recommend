@@ -81,6 +81,7 @@ import com.huanchengfly.tieba.post.ui.widgets.compose.Button
 import com.huanchengfly.tieba.post.ui.widgets.compose.Card
 import com.huanchengfly.tieba.post.ui.widgets.compose.ConfirmDialog
 import com.huanchengfly.tieba.post.ui.widgets.compose.ErrorScreen
+import com.huanchengfly.tieba.post.ui.widgets.compose.HighlightText
 import com.huanchengfly.tieba.post.ui.widgets.compose.LongClickMenu
 import com.huanchengfly.tieba.post.ui.widgets.compose.MyLazyColumn
 import com.huanchengfly.tieba.post.ui.widgets.compose.MyScaffold
@@ -582,29 +583,36 @@ private fun FavoriteItem(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(top = 4.dp),
+                                        .padding(top = 6.dp),
                                     verticalAlignment = Alignment.Top
                                 ) {
+                                    // 竖线只留 2dp，缩进也只留 6dp：
+                                    // 之前留 10dp 又没有缩进层级，看着空、
+                                    // 正文被挤到屏幕中间，可用宽度白白少了一截
                                     Box(
                                         modifier = Modifier
                                             .width(2.dp)
                                             .height(IntrinsicSize.Min)
                                             .background(
-                                                ExtendedTheme.colors.primary.copy(alpha = 0.35f)
+                                                ExtendedTheme.colors.primary.copy(alpha = 0.45f)
                                             )
                                     )
-                                    Column(modifier = Modifier.padding(start = 8.dp)) {
+                                    Column(modifier = Modifier.padding(start = 6.dp)) {
                                         Text(
                                             text = "#${hit.floor} · ${hit.author}",
-                                            fontSize = 11.sp,
+                                            fontSize = 12.sp,
                                             color = ExtendedTheme.colors.primary
                                         )
-                                        Text(
+                                        // 命中词用半透明底色标出来，不然用户得自己在
+                                        // 一堆字里找哪几个字是搜的那几个
+                                        HighlightText(
                                             text = hit.snippet,
-                                            fontSize = 13.sp,
-                                            maxLines = 2,
+                                            fontSize = 15.sp,
+                                            maxLines = 3,
                                             overflow = TextOverflow.Ellipsis,
-                                            color = ExtendedTheme.colors.textSecondary
+                                            color = ExtendedTheme.colors.textSecondary,
+                                            highlightKeywords = hit.matchedWords,
+                                            highlightColor = ExtendedTheme.colors.primary,
                                         )
                                     }
                                 }

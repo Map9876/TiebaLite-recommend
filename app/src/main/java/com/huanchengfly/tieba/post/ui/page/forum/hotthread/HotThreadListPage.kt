@@ -192,54 +192,36 @@ fun HotThreadListPage(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .background(ExtendedTheme.colors.background)
-                                    .padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 6.dp),
+                                    .padding(start = 16.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
                             ) {
+                                // 不再自己画一遍「热门」标题——上面已经有 tab 行了，
+                                // 重复一遍只是白占一行高度、把列表可视区挤掉。
+                                // 这里只留右侧两个小按钮，和 tab 行齐平。
                                 Text(
-                                    text = stringResource(R.string.tab_forum_hot),
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = ExtendedTheme.colors.textSecondary,
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "· ${data.size}",
+                                    text = "已翻 ${data.size} 条",
                                     fontSize = 12.sp,
                                     color = ExtendedTheme.colors.textSecondary,
                                 )
                                 Spacer(modifier = Modifier.weight(1f))
-                                // 记住上次翻到的日期，下次从那儿接着翻
-                                lastSeen?.let { seen ->
-                                    Text(
-                                        text = "· 上次看到 ${formatDay(seen.oldestSeenTime)}",
-                                        fontSize = 12.sp,
-                                        color = ExtendedTheme.colors.textSecondary,
-                                        modifier = Modifier.clickable {
-                                            viewModel.send(
-                                                HotThreadUiIntent.JumpTo(
-                                                    forumName = forumName,
-                                                    page = seen.maxPage.coerceAtLeast(1),
-                                                    anchorTid = seen.anchorTid
-                                                )
-                                            )
-                                        }
-                                    )
-                                }
-                                IconButton(
-                                    onClick = {
-                                        viewModel.send(
-                                            HotThreadUiIntent.JumpTo(
-                                                forumName = forumName,
-                                                page = (lastSeen?.maxPage ?: 0) + 1,
-                                                anchorTid = lastSeen?.anchorTid ?: 0L
-                                            )
-                                        )
-                                    },
-                                    enabled = !isRefreshing && lastSeen != null,
+                                Box(
+                                    modifier = Modifier.size(28.dp),
+                                    contentAlignment = Alignment.Center,
                                 ) {
                                     Icon(
                                         imageVector = Icons.Rounded.KeyboardArrowDown,
                                         contentDescription = "继续往后翻",
                                         tint = ExtendedTheme.colors.textSecondary,
+                                        modifier = Modifier
+                                            .size(20.dp)
+                                            .clickable(enabled = !isRefreshing && lastSeen != null) {
+                                                viewModel.send(
+                                                    HotThreadUiIntent.JumpTo(
+                                                        forumName = forumName,
+                                                        page = (lastSeen?.maxPage ?: 0) + 1,
+                                                        anchorTid = lastSeen?.anchorTid ?: 0L
+                                                    )
+                                                )
+                                            }
                                     )
                                 }
                                 // 刷新按钮紧贴标题文字。做成 28dp 的小方块而不是

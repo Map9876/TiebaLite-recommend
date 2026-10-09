@@ -8,6 +8,8 @@ data class FloorHit(
     val author: String,
     /** 命中片段（已裁到词周围，带上下文） */
     val snippet: String,
+    /** 实际命中的那些词，渲染时拿来高亮 */
+    val matchedWords: List<String>,
 )
 
 object FavoriteSearchHelper {
@@ -46,7 +48,8 @@ object FavoriteSearchHelper {
             FloorHit(
                 floor = floor.floor,
                 author = floor.author?.takeIf { it.isNotBlank() } ?: "匿名",
-                snippet = snippet(floor.text, index, key.length)
+                snippet = snippet(floor.text, index, key.length),
+                matchedWords = keys.filter { floor.text.contains(it, ignoreCase = true) }
             )
         }.take(maxFloors)
     }

@@ -932,10 +932,10 @@ fun ThreadPage(
                 val postAuthor = post.get { author }
                 ThreadViewCache.Floor(
                     floor = post.get { floor },
-                    // 用户名优先：nameShow（昵称）在有些帖子是空的，
-                    // 而 name 才是登录名。之前反过来取，结果导出全是 "-th-" 这种用户名
-                    author = postAuthor?.get { name }.orEmpty()
-                        .ifBlank { postAuthor?.get { nameShow }.orEmpty() },
+                    author = pickAuthorName(
+                        postAuthor?.get { nameShow },
+                        postAuthor?.get { name }
+                    ),
                     text = renders.joinToString("\n") { it.toString() },
                     images = renders.filterIsInstance<PicContentRender>()
                         .map { it.originUrl.ifBlank { it.picUrl } },
@@ -1805,6 +1805,22 @@ private fun BottomBar(
             )
         }
     }
+}
+
+/**
+ * 挑一个能显示的作者名。
+ *
+ * 贴吧未登录 / 匿名回复时，name 和 nameShow 会被服务端填成同一个公共占位号
+ * （见过「-th-」「蚂蚁雅虎哈哈」这类）。全都显示成同一个名字比显示空更糟，
+ * 所以两边内容相同时按匿名处理，让导出显示「匿名」。
+ * 真用户的 name（登录名）和 nameShow（昵称）不会相同。
+ */
+private fun pickAuthorName(nameShow: String?, name: String?): String {
+    val show = nameShow.orEmpty().trim()
+    val real = name.orEmpty().trim()
+    if (show.isNotEmpty() && show != real) return show
+    if (real.isNotEmpty()) return real
+    return ""
 }
 
 @Composable
