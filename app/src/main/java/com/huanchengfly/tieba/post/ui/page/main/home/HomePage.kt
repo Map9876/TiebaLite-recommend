@@ -754,7 +754,12 @@ fun EmptyScreen(
     canOpenExplore: Boolean,
     onOpenExplore: () -> Unit
 ) {
-    val navigator = LocalNavigator.current
+    // navigator 只在未登录的「去登录」按钮里用到，却在这个 composable 的
+    // 顶层就读取。LocalNavigator 在没被 ProvideNavigator 包裹的作用域里
+    // 读取会直接抛 IllegalStateException（App 启动加载首页时崩过这个）。
+    //
+    // 改成在真正用到的时候才读：未登录以外的情况根本不会碰它，
+    // 也不会因为缺 navigator 而把整个空屏搞崩。
     TipScreen(
         title = {
             if (!loggedIn) {
@@ -787,7 +792,7 @@ fun EmptyScreen(
             if (!loggedIn) {
                 Button(
                     onClick = {
-                        navigator.navigate(LoginPageDestination)
+                        LocalNavigator.current.navigate(LoginPageDestination)
                     },
                     modifier = Modifier
                         .fillMaxWidth()

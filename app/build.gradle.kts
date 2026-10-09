@@ -90,8 +90,10 @@ android {
                 else signingConfigs.getByName("debug")
         }
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            // 先关掉混淆：崩溃堆栈里类名全被压成 fe.g / a0.x，根本看不出
+            // 是哪个组件出的问题，排查只能靠猜。定位完问题再打开。
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
