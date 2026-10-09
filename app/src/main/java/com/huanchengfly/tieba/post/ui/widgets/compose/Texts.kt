@@ -426,6 +426,8 @@ fun HighlightText(
     highlightKeywords: List<String> = emptyList(),
     highlightColor: Color = ExtendedTheme.colors.primary,
     highlightStyle: TextStyle = style,
+    /** 见 PbContentText 的同名参数：纯展示文本传 false，避免读取 navigator */
+    clickable: Boolean = true,
 ) {
     HighlightText(
         text = AnnotatedString(text),
@@ -450,6 +452,7 @@ fun HighlightText(
         highlightKeywords = highlightKeywords,
         highlightColor = highlightColor,
         highlightStyle = highlightStyle,
+        clickable = clickable,
     )
 }
 
