@@ -69,6 +69,7 @@ import com.huanchengfly.tieba.post.arch.pageViewModel
 import com.huanchengfly.tieba.post.models.database.Favorite
 import com.huanchengfly.tieba.post.repository.FavoriteRepository
 import com.huanchengfly.tieba.post.utils.FavoriteAutoSave
+import com.huanchengfly.tieba.post.utils.FavoriteCoverRefresher
 import com.huanchengfly.tieba.post.utils.FavoriteExportDir
 import com.huanchengfly.tieba.post.utils.appPreferences
 import com.huanchengfly.tieba.post.ui.common.theme.compose.ExtendedTheme
@@ -532,6 +533,16 @@ private fun FavoriteItem(
 ) {
     val context = LocalContext.current
     val menuState = rememberMenuState()
+    // 封面自动刷新：先照常显示旧封面，后台确认它是占位图之后才换新地址。
+    // 前段完全不阻塞，后段在后台跑。
+    var refreshedCover by remember(favorite.threadId) { mutableStateOf<String?>(null) }
+    LaunchedEffect(favorite.threadId, favorite.coverUrl) {
+        val fresh = FavoriteCoverRefresher.refreshIfNeeded(favorite)
+        if (fresh != null) {
+            refreshedCover = fresh
+            FavoriteRepository.updateCover(favorite.threadId, fresh)
+        }
+    }
     LongClickMenu(
         menuContent = {
             DropdownMenuItem(onClick = {
@@ -563,10 +574,12 @@ private fun FavoriteItem(
                     verticalAlignment = Alignment.Top,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    // 封面（帖子首图 / 一楼图片）
-                    favorite.coverUrl?.takeIf { it.isNotBlank() }?.let { cover ->
+                    // 封面（帖子首图 / 一楼图片）。先照常显示，不等待任何网络请求；
+                    // 后台再判断它是不是已经变成 238x238 的占位图，是的话换成新的
+                    val cover = favorite.coverUrl?.takeIf { it.isNotBlank() }
+                    if (cover != null) {
                         NetworkImage(
-                            imageUri = cover,
+                            imageUri = refreshedCover ?: cover,
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier

@@ -169,6 +169,20 @@ object FavoriteRepository {
         }
     }
 
+    /**
+     * 只换封面地址。封面 token 过期后由 FavoriteCoverRefresher 拿到新地址写回，
+     * 下次进来就不用再刷一次。
+     */
+    fun updateCover(threadId: Long, coverUrl: String) {
+        GlobalScope.launch(Dispatchers.IO) {
+            runCatching {
+                val old = LitePal.where("threadId = ?", threadId.toString())
+                    .findFirst<Favorite>() ?: return@runCatching
+                old.copy(coverUrl = coverUrl).update(old.id)
+            }
+        }
+    }
+
     fun remove(threadId: Long) {
         GlobalScope.launch(Dispatchers.IO) {
             LitePal.deleteAll<Favorite>("threadId = ?", threadId.toString())
